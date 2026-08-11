@@ -10,6 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import config
+# pyrefly: ignore [missing-import]
 from flask import Flask, jsonify
 from flask_cors import CORS
 from backend.database import db
@@ -19,7 +20,7 @@ from backend.logger   import log_system
 def create_app() -> Flask:
     """Create and configure the Flask application."""
 
-    app = Flask(
+    app = Flask( 
         __name__,
         template_folder=str(config.TEMPLATES_DIR),
         static_folder=str(config.STATIC_DIR),
