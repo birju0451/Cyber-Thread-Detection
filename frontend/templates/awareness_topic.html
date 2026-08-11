@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Awareness Topic{% endblock %}
+{% block page_title %}Awareness Center{% endblock %}
+{% block page_subtitle %}Cybersecurity education and best practices{% endblock %}
+
+{% block content %}
+<div style="max-width:800px" id="topic-content">
+  <div class="loading-center"><div class="spinner"></div><span>Loading content…</span></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(async () => {
+  const slug = "{{ slug }}";
+  const data = await ABTD.get(`/api/awareness/${slug}`);
+  const wrap = document.getElementById("topic-content");
+
+  if (!data || data.error) {
+    wrap.innerHTML = `<div class="empty-state"><div class="empty-icon">❌</div><div class="empty-title">Topic not found</div><a href="/awareness" class="btn btn-outline btn-sm mt-16">← Back to Awareness</a></div>`;
+    return;
+  }
+
+  const sections = (data.sections || []).map(s => `
+    <div class="card mb-16">
+      <div class="card-title mb-12" style="font-size:16px">${s.icon || "📌"} ${s.title}</div>
+      <p style="color:var(--text-secondary);line-height:1.7;font-size:14px">${s.content}</p>
+      ${s.tips ? `<ul style="margin-top:12px;padding-left:20px;color:var(--text-secondary);font-size:13px;line-height:2">${s.tips.map(t=>`<li>${t}</li>`).join("")}</ul>` : ""}
+    </div>`).join("");
+
+  wrap.innerHTML = `
+    <div class="flex items-center gap-12 mb-24">
+      <a href="/awareness" class="btn btn-outline btn-sm">← Back</a>
+      <span style="font-size:36px">${data.icon || "📚"}</span>
+      <div>
+        <h2 style="font-size:24px;font-weight:800;color:${data.color || 'var(--accent-primary)'}">${data.title}</h2>
+        <p style="color:var(--text-muted);font-size:13px;margin-top:4px">${data.summary || ""}</p>
+      </div>
+    </div>
+
+    ${data.warning ? `<div class="alert-box danger mb-24"><span>⚠️</span><span>${data.warning}</span></div>` : ""}
+    ${sections}
+    ${data.quiz ? renderQuiz(data.quiz) : ""}
+  `;
+})();
+
+function renderQuiz(quiz) {
+  return `
+    <div class="card mt-24" style="border-color:rgba(59,130,246,0.3)">
+      <div class="card-title mb-16">🎯 Quick Quiz</div>
+      ${quiz.map((q, qi) => `
+        <div style="margin-bottom:20px">
+          <div style="font-weight:600;color:var(--text-primary);margin-bottom:10px">${qi+1}. ${q.question}</div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            ${q.options.map((opt, oi) => `
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px 12px;background:var(--surface-2);border-radius:6px;font-size:13px;color:var(--text-secondary)">
+                <input type="radio" name="q${qi}" value="${oi}" style="accent-color:var(--accent-primary)">
+                ${opt}
+              </label>`).join("")}
+          </div>
+        </div>`).join("")}
+    </div>`;
+}
+</script>
+{% endblock %}

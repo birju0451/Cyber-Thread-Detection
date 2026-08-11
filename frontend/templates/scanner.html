@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}URL & File Scanner{% endblock %}
+{% block page_title %}URL & File Scanner{% endblock %}
+{% block page_subtitle %}Analyze any URL or file with the 5-layer ABTD detection engine{% endblock %}
+
+{% block content %}
+<div style="max-width:860px">
+
+  <!-- Scan Form -->
+  <div class="card mb-24">
+    <div class="card-title mb-16">🔍 Enter Target to Analyze</div>
+    <form id="scan-form">
+      <div class="flex gap-12 mb-16">
+        <select id="scan-type" class="form-input" style="width:160px;flex-shrink:0">
+          <option value="url">🌐 URL</option>
+          <option value="file">📁 File Path</option>
+        </select>
+        <input
+          id="scan-input"
+          type="text"
+          class="form-input"
+          placeholder="https://example.com  or  C:\Users\...\file.exe"
+          autocomplete="off"
+          spellcheck="false"
+        >
+        <button id="scan-btn" type="submit" class="btn btn-primary btn-lg" style="flex-shrink:0">
+          Scan Now
+        </button>
+      </div>
+
+      <!-- Quick examples -->
+      <div class="flex gap-8 flex-wrap" style="font-size:12px">
+        <span class="text-muted">Try:</span>
+        <button type="button" class="btn btn-outline btn-sm example-btn" data-val="http://paypal-secure-login.tk/verify" data-type="url">Phishing URL</button>
+        <button type="button" class="btn btn-outline btn-sm example-btn" data-val="https://google.com" data-type="url">Safe URL</button>
+        <button type="button" class="btn btn-outline btn-sm example-btn" data-val="https://bit.ly/3xABC12" data-type="url">URL Shortener</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Scan Steps Animation -->
+  <div id="scan-steps" class="card mb-24" style="display:none"></div>
+
+  <!-- Scan Result -->
+  <div id="scan-result"></div>
+
+  <!-- How it works -->
+  <div class="card mt-24">
+    <div class="card-title mb-16">🧠 How ABTD Analyzes Threats</div>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;text-align:center">
+      <div style="padding:16px;background:var(--surface-2);border-radius:var(--radius-sm)">
+        <div style="font-size:24px;margin-bottom:8px">📐</div>
+        <div style="font-size:12px;font-weight:700;color:var(--text-primary);margin-bottom:4px">Feature Extraction</div>
+        <div style="font-size:11px;color:var(--text-muted)">30 URL signals extracted</div>
+      </div>
+      <div style="padding:16px;background:var(--surface-2);border-radius:var(--radius-sm)">
+        <div style="font-size:24px;margin-bottom:8px">🌲</div>
+        <div style="font-size:12px;font-weight:700;color:var(--text-primary);margin-bottom:4px">Random Forest</div>
+        <div style="font-size:11px;color:var(--text-muted)">Supervised ML classifier</div>
+      </div>
+      <div style="padding:16px;background:var(--surface-2);border-radius:var(--radius-sm)">
+        <div style="font-size:24px;margin-bottom:8px">🔬</div>
+        <div style="font-size:12px;font-weight:700;color:var(--text-primary);margin-bottom:4px">Anomaly Detect</div>
+        <div style="font-size:11px;color:var(--text-muted)">Isolation Forest unsupervised</div>
+      </div>
+      <div style="padding:16px;background:var(--surface-2);border-radius:var(--radius-sm)">
+        <div style="font-size:24px;margin-bottom:8px">📋</div>
+        <div style="font-size:12px;font-weight:700;color:var(--text-primary);margin-bottom:4px">Rule Engine</div>
+        <div style="font-size:11px;color:var(--text-muted)">10 heuristic security rules</div>
+      </div>
+      <div style="padding:16px;background:var(--surface-2);border-radius:var(--radius-sm)">
+        <div style="font-size:24px;margin-bottom:8px">🌐</div>
+        <div style="font-size:12px;font-weight:700;color:var(--text-primary);margin-bottom:4px">Reputation</div>
+        <div style="font-size:11px;color:var(--text-muted)">WHOIS + DNSBL checks</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/scanner.js') }}"></script>
+<script>
+  // Example buttons
+  document.querySelectorAll(".example-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.getElementById("scan-input").value = btn.dataset.val;
+      document.getElementById("scan-type").value  = btn.dataset.type;
+    });
+  });
+
+  // Show/hide scan-steps only when it has content
+  const observer = new MutationObserver(() => {
+    const el = document.getElementById("scan-steps");
+    if (el) el.style.display = el.innerHTML.trim() ? "block" : "none";
+  });
+  const stepsEl = document.getElementById("scan-steps");
+  if (stepsEl) observer.observe(stepsEl, { childList: true, subtree: true });
+</script>
+{% endblock %}

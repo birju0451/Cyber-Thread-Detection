@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}About ABTD{% endblock %}
+{% block page_title %}About ABTD{% endblock %}
+{% block page_subtitle %}Adaptive Behavioral Threat Detection — AI-powered Windows Endpoint Protection{% endblock %}
+
+{% block content %}
+<div style="max-width:800px">
+
+  <div class="card mb-20" style="background:linear-gradient(135deg,rgba(59,130,246,0.1),rgba(124,58,237,0.1));border-color:rgba(59,130,246,0.3)">
+    <div style="display:flex;align-items:center;gap:20px">
+      <div style="font-size:64px">🛡️</div>
+      <div>
+        <h2 style="font-size:28px;font-weight:900;background:linear-gradient(90deg,var(--accent-cyan),var(--accent-violet));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">ABTD v1.0</h2>
+        <p style="color:var(--text-secondary);margin-top:6px;font-size:14px">Adaptive Behavioral Threat Detection System</p>
+        <p style="color:var(--text-muted);font-size:12px;margin-top:4px">Final Year Engineering Project · Python 3.11 · Flask · MongoDB Atlas · scikit-learn</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Architecture -->
+  <div class="card mb-20">
+    <div class="card-title mb-16">🏗️ System Architecture</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px">
+      <div style="text-align:center;padding:16px;background:var(--surface-2);border-radius:var(--radius-sm)">
+        <div style="font-size:28px;margin-bottom:8px">🌲</div>
+        <div style="font-weight:700;color:var(--text-primary);font-size:13px">Random Forest</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Supervised classifier for URLs &amp; malware</div>
+      </div>
+      <div style="text-align:center;padding:16px;background:var(--surface-2);border-radius:var(--radius-sm)">
+        <div style="font-size:28px;margin-bottom:8px">🔬</div>
+        <div style="font-weight:700;color:var(--text-primary);font-size:13px">Isolation Forest</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Unsupervised anomaly detection in memory</div>
+      </div>
+      <div style="text-align:center;padding:16px;background:var(--surface-2);border-radius:var(--radius-sm)">
+        <div style="font-size:28px;margin-bottom:8px">📋</div>
+        <div style="font-weight:700;color:var(--text-primary);font-size:13px">Rule Engine</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px">10 heuristic security rules with scoring</div>
+      </div>
+      <div style="text-align:center;padding:16px;background:var(--surface-2);border-radius:var(--radius-sm)">
+        <div style="font-size:28px;margin-bottom:8px">🌐</div>
+        <div style="font-weight:700;color:var(--text-primary);font-size:13px">Reputation</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px">WHOIS domain age + DNSBL blacklists</div>
+      </div>
+      <div style="text-align:center;padding:16px;background:var(--surface-2);border-radius:var(--radius-sm)">
+        <div style="font-size:28px;margin-bottom:8px">✨</div>
+        <div style="font-weight:700;color:var(--text-primary);font-size:13px">Gemini AI</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Natural language threat explanations</div>
+      </div>
+      <div style="text-align:center;padding:16px;background:var(--surface-2);border-radius:var(--radius-sm)">
+        <div style="font-size:28px;margin-bottom:8px">🗄️</div>
+        <div style="font-weight:700;color:var(--text-primary);font-size:13px">MongoDB Atlas</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Cloud threat log database</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Live Status -->
+  <div class="card mb-20">
+    <div class="card-title mb-16">🟢 Live System Status</div>
+    <div id="status-details"><div class="spinner"></div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title mb-12">📄 License &amp; Disclaimer</div>
+    <p style="color:var(--text-muted);font-size:13px;line-height:1.7">
+      ABTD is developed as a Final Year Engineering project for educational and research purposes.
+      This system demonstrates AI-powered threat detection techniques using publicly available datasets.
+      It is not intended as a replacement for production-grade commercial security software.
+    </p>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(async () => {
+  const data = await ABTD.get("/api/status");
+  const el   = document.getElementById("status-details");
+  if (!data) { el.innerHTML = `<p class="text-muted">Status unavailable</p>`; return; }
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+      <div style="padding:12px;background:var(--surface-2);border-radius:8px">
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">ABTD Status</div>
+        <div style="font-weight:700;color:var(--safe)">${data.status}</div>
+      </div>
+      <div style="padding:12px;background:var(--surface-2);border-radius:8px">
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Database</div>
+        <div style="font-weight:700;color:${data.db==="connected"?"var(--safe)":"var(--malicious)"}">${data.db}</div>
+      </div>
+      <div style="padding:12px;background:var(--surface-2);border-radius:8px">
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Gemini AI</div>
+        <div style="font-weight:700;color:${data.gemini==="enabled"?"var(--safe)":"var(--text-muted)"}">${data.gemini}</div>
+      </div>
+      <div style="padding:12px;background:var(--surface-2);border-radius:8px">
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Version</div>
+        <div style="font-weight:700;color:var(--accent-cyan)">${data.version}</div>
+      </div>
+      <div style="padding:12px;background:var(--surface-2);border-radius:8px">
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">App Uptime</div>
+        <div style="font-weight:700;color:var(--text-primary)">${data.uptime_s}s</div>
+      </div>
+    </div>`;
+})();
+</script>
+{% endblock %}

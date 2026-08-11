@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}Threat Feed{% endblock %}
+{% block page_title %}Threat Feed{% endblock %}
+{% block page_subtitle %}Live alerts from all monitoring modules — files, processes, network, registry{% endblock %}
+
+{% block content %}
+
+<!-- Alert Tabs -->
+<div class="flex gap-8 mb-20" id="alert-tabs">
+  <button class="btn btn-primary btn-sm tab-btn active" data-tab="all">All Alerts</button>
+  <button class="btn btn-outline btn-sm tab-btn" data-tab="file">📁 File</button>
+  <button class="btn btn-outline btn-sm tab-btn" data-tab="process">⚙️ Process</button>
+  <button class="btn btn-outline btn-sm tab-btn" data-tab="network">🌐 Network</button>
+  <button class="btn btn-outline btn-sm tab-btn" data-tab="registry">🔑 Registry</button>
+  <button class="btn btn-outline btn-sm tab-btn" data-tab="usb">💾 USB</button>
+</div>
+
+<div class="grid-2 mb-20">
+  <!-- Alert list -->
+  <div class="card" style="grid-column:span 2">
+    <div class="card-header">
+      <div class="card-title">🔔 Active Alerts</div>
+      <span class="live-indicator"><span class="live-dot"></span> Auto-refresh 15s</span>
+    </div>
+    <div id="alerts-container">
+      <div class="loading-center"><div class="spinner"></div><span>Loading alerts…</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- Timeline chart -->
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">📈 Threat Timeline (7 days)</div>
+  </div>
+  <div class="chart-wrap-lg">
+    <canvas id="threats-timeline"></canvas>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+(async () => {
+  let activeTab = "all";
+
+  const ENDPOINTS = {
+    all     : "/api/threats/combined",
+    file    : "/api/file-alerts",
+    process : "/api/process-alerts",
+    network : "/api/network-alerts",
+    registry: "/api/registry-alerts",
+    usb     : "/api/usb-alerts",
+  };
+
+  async function loadAlerts() {
+    const container = document.getElementById("alerts-container");
+    const endpoint  = ENDPOINTS[activeTab] || ENDPOINTS.all;
+    const data      = await ABTD.get(endpoint);
+
+    const items = Array.isArray(data) ? data : (data?.items || []);
+
+    if (!items.length) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">🛡️</div>
+          <div class="empty-title">No alerts in this category</div>
+          <div class="empty-sub">The monitoring agent is running and watching for threats</div>
+        </div>`;
+      return;
+    }
+
+    container.innerHTML = items.slice(0, 30).map(a => {
+      const title  = a.title       || a.url || a.file_path || a.process_name || "Alert";
+      const desc   = a.description || a.recommended_action || "";
+      const sev    = a.severity    || a.classification || "INFO";
+      const sevCls = ({CRITICAL:"critical", HIGH:"malicious", MALICIOUS:"malicious",
+                       MEDIUM:"suspicious", SUSPICIOUS:"suspicious",
+                       LOW:"safe", SAFE:"safe"})[sev.toUpperCase()] || "info";
+      const ts     = a.timestamp   || a.logged_at || "";
+      return `
+        <div class="alert-box ${sevCls === "critical" || sevCls === "malicious" ? "danger" : sevCls === "suspicious" ? "warning" : "success"}" style="margin-bottom:8px">
+          <span>${sev === "CRITICAL" ? "🔴" : sev === "HIGH" || sev === "MALICIOUS" ? "🚫" : sev === "MEDIUM" || sev === "SUSPICIOUS" ? "⚠️" : "ℹ️"}</span>
+          <div style="flex:1">
+            <div style="font-weight:600;margin-bottom:4px">${ABTD.truncate(title, 80)}</div>
+            ${desc ? `<div style="font-size:12px;opacity:0.8">${ABTD.truncate(desc, 120)}</div>` : ""}
+            <div style="font-size:11px;opacity:0.5;margin-top:4px">${ABTD.formatTime(ts)}</div>
+          </div>
+          <span class="badge badge-${sevCls}">${sev}</span>
+        </div>`;
+    }).join("");
+  }
+
+  async function loadTimeline() {
+    const data = await ABTD.get("/api/threats/timeline?days=7");
+    if (!data) return;
+    const ctx = document.getElementById("threats-timeline");
+    if (!ctx) return;
+
+    new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: data.map(d => d._id),
+        datasets: [
+          { label:"Threats", data: data.map(d => d.count),
+            backgroundColor: "rgba(239,68,68,0.6)", borderColor:"#ef4444",
+            borderWidth:1, borderRadius:4 },
+        ],
+      },
+      options: {
+        responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{display:false},
+          tooltip:{backgroundColor:"#13192a",titleColor:"#f1f5f9",bodyColor:"#94a3b8"} },
+        scales:{
+          x:{grid:{color:"rgba(255,255,255,0.05)"},ticks:{color:"#475569",font:{size:11}}},
+          y:{grid:{color:"rgba(255,255,255,0.05)"},ticks:{color:"#475569",font:{size:11}},beginAtZero:true},
+        },
+      },
+    });
+  }
+
+  // Tab switching
+  document.querySelectorAll(".tab-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".tab-btn").forEach(b => {
+        b.classList.remove("active","btn-primary");
+        b.classList.add("btn-outline");
+      });
+      btn.classList.add("active","btn-primary");
+      btn.classList.remove("btn-outline");
+      activeTab = btn.dataset.tab;
+      loadAlerts();
+    });
+  });
+
+  await Promise.all([loadAlerts(), loadTimeline()]);
+  setInterval(loadAlerts, 15000);
+})();
+</script>
+{% endblock %}

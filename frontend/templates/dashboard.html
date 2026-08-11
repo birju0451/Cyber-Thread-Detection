@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+{% block page_subtitle %}Real-time threat overview — AI-powered endpoint protection{% endblock %}
+
+{% block content %}
+
+<!-- ── KPI Cards ──────────────────────────────────────────── -->
+<div class="stats-grid">
+  <div class="stat-card" style="--card-color: var(--accent-cyan)">
+    <span class="stat-icon">🔍</span>
+    <div class="stat-value" id="stat-total-scans">—</div>
+    <div class="stat-label">Total Scans</div>
+  </div>
+  <div class="stat-card" style="--card-color: var(--malicious)">
+    <span class="stat-icon">🚨</span>
+    <div class="stat-value" id="stat-threats">—</div>
+    <div class="stat-label">Threats Detected</div>
+  </div>
+  <div class="stat-card" style="--card-color: var(--suspicious)">
+    <span class="stat-icon">⚠️</span>
+    <div class="stat-value" id="stat-suspicious">—</div>
+    <div class="stat-label">Suspicious</div>
+  </div>
+  <div class="stat-card" style="--card-color: var(--safe)">
+    <span class="stat-icon">✅</span>
+    <div class="stat-value" id="stat-safe">—</div>
+    <div class="stat-label">Safe</div>
+  </div>
+  <div class="stat-card" style="--card-color: var(--accent-violet)">
+    <span class="stat-icon">🔔</span>
+    <div class="stat-value" id="stat-alerts">—</div>
+    <div class="stat-label">Agent Alerts</div>
+  </div>
+  <div class="stat-card" style="--card-color: var(--accent-primary)">
+    <span class="stat-icon">📈</span>
+    <div class="stat-value" id="stat-threat-rate">—</div>
+    <div class="stat-label">Threat Rate</div>
+  </div>
+</div>
+
+<!-- ── Charts Row ─────────────────────────────────────────── -->
+<div class="grid-2 mb-24">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">📅 7-Day Threat Timeline</div>
+      <span class="live-indicator"><span class="live-dot"></span> Auto-refresh</span>
+    </div>
+    <div class="chart-wrap">
+      <canvas id="timeline-chart"></canvas>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">🕐 24h Hourly Activity</div>
+    </div>
+    <div class="chart-wrap">
+      <canvas id="hourly-chart"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- ── System Health + Recent Threats ────────────────────── -->
+<div class="grid-2">
+  <!-- System Health -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">💻 System Health</div>
+      <span class="text-muted" id="sys-hostname" style="font-size:12px"></span>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div>
+        <div class="flex-between mb-8" style="font-size:13px">
+          <span class="text-secondary">CPU Usage</span>
+          <span class="text-primary" id="sys-cpu">—</span>
+        </div>
+        <div class="score-bar"><div class="score-bar-fill" id="bar-cpu" style="width:0%"></div></div>
+      </div>
+      <div>
+        <div class="flex-between mb-8" style="font-size:13px">
+          <span class="text-secondary">RAM Usage</span>
+          <span class="text-primary" id="sys-ram">—</span>
+        </div>
+        <div class="score-bar"><div class="score-bar-fill" id="bar-ram" style="width:0%"></div></div>
+      </div>
+      <div>
+        <div class="flex-between mb-8" style="font-size:13px">
+          <span class="text-secondary">Disk Usage</span>
+          <span class="text-primary" id="sys-disk">—</span>
+        </div>
+        <div class="score-bar"><div class="score-bar-fill" id="bar-disk" style="width:0%"></div></div>
+      </div>
+      <div class="flex-between" style="font-size:13px;margin-top:8px;padding-top:12px;border-top:1px solid var(--surface-border)">
+        <span class="text-muted">System Uptime</span>
+        <span class="text-secondary" id="sys-uptime">—</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Threats -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">🔴 Recent Threats</div>
+      <a href="/history" class="btn btn-outline btn-sm">View All</a>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Target</th>
+            <th>Level</th>
+            <th>Score</th>
+            <th>Type</th>
+            <th>When</th>
+          </tr>
+        </thead>
+        <tbody id="recent-threats-body">
+          <tr><td colspan="5" class="text-center"><div class="spinner" style="margin:20px auto"></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="card mt-24">
+  <div class="card-title mb-16">⚡ Quick Actions</div>
+  <div class="flex gap-12">
+    <a href="/scanner" class="btn btn-primary">🔍 Scan URL / File</a>
+    <a href="/history?classification=MALICIOUS" class="btn btn-danger">🚫 View Threats</a>
+    <a href="/awareness" class="btn btn-outline">🎓 Learn Security</a>
+    <a href="/settings" class="btn btn-outline">⚙️ Settings</a>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}

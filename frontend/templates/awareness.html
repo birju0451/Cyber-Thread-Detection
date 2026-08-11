@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Cyber Security Awareness{% endblock %}
+{% block page_title %}Security Awareness Center{% endblock %}
+{% block page_subtitle %}Learn how to stay safe online — comprehensive cybersecurity education{% endblock %}
+
+{% block content %}
+<div id="topics-grid" class="topic-cards">
+  <div class="loading-center" style="grid-column:span 3">
+    <div class="spinner"></div><span>Loading topics…</span>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(async () => {
+  const data   = await ABTD.get("/api/awareness");
+  const grid   = document.getElementById("topics-grid");
+
+  if (!data?.length) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:span 3">
+      <div class="empty-icon">📚</div>
+      <div class="empty-title">Awareness content unavailable</div>
+      <div class="empty-sub">Run the server with awareness JSON files present</div>
+    </div>`;
+    return;
+  }
+
+  grid.innerHTML = data.map(t => `
+    <a class="topic-card" href="/awareness/${t.slug}">
+      <span class="topic-card-icon">${t.icon}</span>
+      <div class="topic-card-title" style="color:${t.color}">${t.title}</div>
+      <div class="topic-card-summary">${t.summary || "Click to learn about " + t.title.toLowerCase()}</div>
+      <div class="read-more" style="color:${t.color}">Read more →</div>
+    </a>`).join("");
+})();
+</script>
+{% endblock %}

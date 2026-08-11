@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="ABTD — Adaptive Behavioral Threat Detection: AI-powered Windows endpoint protection and cyber threat monitoring dashboard.">
+  <meta name="theme-color" content="#080c14">
+  <title>{% block title %}ABTD{% endblock %} — Adaptive Behavioral Threat Detection</title>
+
+  <!-- Stylesheets -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  {% block head %}{% endblock %}
+</head>
+<body>
+<div class="app-layout">
+
+  <!-- ══ Sidebar ══════════════════════════════════════════════ -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">🛡️</div>
+      <div>
+        <div class="logo-text">ABTD</div>
+        <div class="logo-sub">Threat Detection</div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Monitor</div>
+      <a class="nav-item" href="/dashboard" id="nav-dashboard">
+        <span class="nav-icon">📊</span> Dashboard
+      </a>
+      <a class="nav-item" href="/threats" id="nav-threats">
+        <span class="nav-icon">🔴</span> Threat Feed
+      </a>
+      <a class="nav-item" href="/history" id="nav-history">
+        <span class="nav-icon">📋</span> Scan History
+      </a>
+
+      <div class="nav-section-label" style="margin-top:16px">Analyze</div>
+      <a class="nav-item" href="/scanner" id="nav-scanner">
+        <span class="nav-icon">🔍</span> URL / File Scanner
+      </a>
+
+      <div class="nav-section-label" style="margin-top:16px">Learn</div>
+      <a class="nav-item" href="/awareness" id="nav-awareness">
+        <span class="nav-icon">🎓</span> Awareness Center
+      </a>
+
+      <div class="nav-section-label" style="margin-top:16px">System</div>
+      <a class="nav-item" href="/settings" id="nav-settings">
+        <span class="nav-icon">⚙️</span> Settings
+      </a>
+      <a class="nav-item" href="/about" id="nav-about">
+        <span class="nav-icon">ℹ️</span> About ABTD
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="status-badge">
+        <div class="status-dot" id="status-dot"></div>
+        <div>
+          <div style="font-size:12px;font-weight:600;color:var(--text-primary)" id="status-text">Protected</div>
+          <div style="font-size:11px;color:var(--text-muted)">ABTD Engine Active</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ══ Main Content ══════════════════════════════════════════ -->
+  <main class="main-content">
+    <!-- Top Bar -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <h1>{% block page_title %}Dashboard{% endblock %}</h1>
+        <div class="page-subtitle">{% block page_subtitle %}Real-time threat monitoring{% endblock %}</div>
+      </div>
+      <div class="topbar-right">
+        <span class="live-indicator">
+          <span class="live-dot"></span> Live
+        </span>
+        <span class="topbar-time" id="live-clock"></span>
+      </div>
+    </header>
+
+    <!-- Page Content -->
+    <div class="page-body">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+
+</div>
+
+<!-- Scripts -->
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+{% block scripts %}{% endblock %}
+
+<script>
+  // Highlight active nav item based on current path
+  document.querySelectorAll(".nav-item").forEach(el => {
+    const href = el.getAttribute("href");
+    if (href && window.location.pathname.startsWith(href) && href !== "/") {
+      el.classList.add("active");
+    }
+  });
+</script>
+</body>
+</html>
