@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Network Activity{% endblock %}
+{% block page_title %}Network Activity{% endblock %}
+{% block page_subtitle %}Live network connections and threat activity — DNS requests, C2 beaconing, suspicious ports{% endblock %}
+{% block content %}
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:24px">
+  <div class="card">
+    <div class="card-header"><div class="card-title">🌐 Behavioral Network Events</div></div>
+    <div id="net-behavior"><div style="text-align:center;padding:20px;color:var(--text-muted)">Loading…</div></div>
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-title">📊 Network Statistics</div></div>
+    <div id="net-stats"><div style="text-align:center;padding:20px;color:var(--text-muted)">Loading…</div></div>
+  </div>
+</div>
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">🔗 Recent Network Threats</div>
+    <a href="/history" style="font-size:12px;color:var(--accent);text-decoration:none">Full history →</a>
+  </div>
+  <div id="net-threats"><div style="text-align:center;padding:20px;color:var(--text-muted)">Loading…</div></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+async function load() {
+  try {
+    const [bR, sR] = await Promise.all([fetch('/api/zero-trust/behavior'), fetch('/api/stats')]);
+    const beh = await bR.json(); const stats = await sR.json();
+    const netProfiles = (beh.data||[]).filter(p => (p.event_types||{}).network_connect > 0);
+    document.getElementById('net-behavior').innerHTML = netProfiles.length
+      ? netProfiles.slice(0,8).map(p => `
+          <div style="padding:8px 0;border-bottom:1px solid var(--border)">
+            <div style="display:flex;justify-content:space-between;font-size:13px">
+              <span style="font-weight:600">${p.entity_id.slice(0,30)}</span>
+              <span style="color:${p.behavior_risk>50?'#ef4444':'#f59e0b'};font-weight:700">${Math.round(p.behavior_risk)} risk</span>
+            </div>
+            <div style="font-size:11px;color:var(--text-muted)">${p.event_types?.network_connect||0} network events</div>
+          </div>`).join('')
+      : '<div style="text-align:center;padding:16px;color:var(--text-muted)">No network behavioral data yet</div>';
+    if (stats.data) {
+      const d = stats.data;
+      document.getElementById('net-stats').innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          ${[['Total Scans', d.total_scans||0,'#3b82f6'],['Threats Detected',d.threats_detected||0,'#ef4444'],
+             ['URLs Scanned',d.url_scans||0,'#8b5cf6'],['Files Scanned',d.file_scans||0,'#f59e0b']].map(([l,v,c])=>
+            `<div style="text-align:center;padding:12px;background:var(--bg-secondary);border-radius:8px">
+              <div style="font-size:24px;font-weight:800;color:${c}">${v}</div>
+              <div style="font-size:11px;color:var(--text-muted)">${l}</div>
+            </div>`).join('')}
+        </div>`;
+    }
+    const tR = await fetch('/api/scans?page=1&classification=malicious');
+    const threats = await tR.json();
+    const items = threats.data?.items || threats.items || [];
+    document.getElementById('net-threats').innerHTML = items.length
+      ? items.slice(0,10).map(s => `
+          <div style="padding:8px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;font-size:13px">
+            <div>
+              <div style="font-weight:600;color:var(--text-primary)">${(s.target||'').slice(0,50)}</div>
+              <div style="font-size:11px;color:var(--text-muted)">${s.target_type||''} · ${new Date(s.timestamp).toLocaleString()}</div>
+            </div>
+            <div style="font-size:12px;font-weight:700;color:#ef4444">${Math.round(s.threat_score)||0}</div>
+          </div>`).join('')
+      : '<div style="text-align:center;padding:16px;color:var(--text-muted)">No network threats detected</div>';
+  } catch(e) { console.error(e); }
+}
+load(); setInterval(load, 20000);
+</script>
+{% endblock %}

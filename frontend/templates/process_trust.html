@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}Process Trust{% endblock %}
+{% block page_title %}Process Trust Assessment{% endblock %}
+{% block page_subtitle %}Real-time analysis of running processes — masquerading, parent-child chains, cmdline anomalies{% endblock %}
+
+{% block content %}
+<style>
+.proc-badge { padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; }
+.risk-CRITICAL { background:rgba(239,68,68,0.15); color:#ef4444; }
+.risk-HIGH     { background:rgba(249,115,22,0.15); color:#f97316; }
+.risk-MEDIUM   { background:rgba(245,158,11,0.15); color:#f59e0b; }
+.risk-LOW      { background:rgba(59,130,246,0.15);  color:#60a5fa; }
+.risk-bar-wrap { width:60px; height:6px; background:rgba(255,255,255,0.06); border-radius:3px; overflow:hidden; }
+.risk-bar-fill { height:100%; border-radius:3px; }
+.proc-row:hover { background:rgba(255,255,255,0.02); }
+</style>
+
+<div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:24px">
+  <div class="card" style="text-align:center; padding:16px">
+    <div style="font-size:28px; font-weight:800; color:var(--text-primary)" id="pt-total">0</div>
+    <div style="font-size:11px; color:var(--text-muted)">PROCESSES</div>
+  </div>
+  <div class="card" style="text-align:center; padding:16px">
+    <div style="font-size:28px; font-weight:800; color:#f97316" id="pt-high">0</div>
+    <div style="font-size:11px; color:var(--text-muted)">HIGH RISK</div>
+  </div>
+  <div class="card" style="text-align:center; padding:16px">
+    <div style="font-size:28px; font-weight:800; color:#ef4444" id="pt-critical">0</div>
+    <div style="font-size:11px; color:var(--text-muted)">CRITICAL</div>
+  </div>
+  <div class="card" style="text-align:center; padding:16px">
+    <button class="btn" onclick="loadProcesses()" style="width:100%">🔄 Refresh</button>
+  </div>
+</div>
+
+<div class="card" style="overflow:hidden; padding:0">
+  <div style="padding:14px 20px; border-bottom:1px solid var(--border); font-size:14px; font-weight:700">Running Processes (sorted by risk)</div>
+  <table style="width:100%; border-collapse:collapse">
+    <thead>
+      <tr style="border-bottom:1px solid var(--border)">
+        <th style="padding:10px 16px; text-align:left; font-size:11px; font-weight:700; color:var(--text-muted)">PROCESS</th>
+        <th style="padding:10px 8px; text-align:left; font-size:11px; font-weight:700; color:var(--text-muted)">PID</th>
+        <th style="padding:10px 8px; text-align:left; font-size:11px; font-weight:700; color:var(--text-muted)">PARENT</th>
+        <th style="padding:10px 8px; text-align:left; font-size:11px; font-weight:700; color:var(--text-muted)">PATH</th>
+        <th style="padding:10px 8px; text-align:center; font-size:11px; font-weight:700; color:var(--text-muted)">RISK</th>
+        <th style="padding:10px 8px; text-align:center; font-size:11px; font-weight:700; color:var(--text-muted)">LEVEL</th>
+        <th style="padding:10px 8px; text-align:left; font-size:11px; font-weight:700; color:var(--text-muted)">FLAGS</th>
+      </tr>
+    </thead>
+    <tbody id="proc-tbody">
+      <tr><td colspan="7" style="text-align:center; padding:40px; color:var(--text-muted)">Loading processes…</td></tr>
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function riskColor(r) {
+  if (r <= 20) return '#22c55e'; if (r <= 40) return '#3b82f6';
+  if (r <= 60) return '#f59e0b'; if (r <= 80) return '#f97316';
+  return '#ef4444';
+}
+
+async function loadProcesses() {
+  try {
+    const r = await fetch('/api/zero-trust/process-trust');
+    const j = await r.json();
+    if (j.status !== 'ok') return;
+    const data = j.data;
+    const procs = data.processes || [];
+
+    document.getElementById('pt-total').textContent    = data.total || 0;
+    document.getElementById('pt-high').textContent     = procs.filter(p => p.risk_level === 'HIGH').length;
+    document.getElementById('pt-critical').textContent = procs.filter(p => p.risk_level === 'CRITICAL').length;
+
+    const tbody = document.getElementById('proc-tbody');
+    if (!procs.length) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-muted)">No process data — agent must be running</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = procs.map(p => {
+      const risk  = p.process_risk_score || 0;
+      const col   = riskColor(risk);
+      const flags = (p.risk_flags || []).slice(0,2).join('; ').slice(0,50);
+      const path  = (p.exe_path || '').split('\\').slice(-2).join('\\');
+      return `
+        <tr class="proc-row" style="border-bottom:1px solid var(--border)">
+          <td style="padding:8px 16px; font-size:13px; font-weight:600; color:var(--text-primary)">${p.process_name}</td>
+          <td style="padding:8px; font-size:11px; color:var(--text-muted)">${p.pid}</td>
+          <td style="padding:8px; font-size:11px; color:var(--text-muted)">${p.parent_name||'—'}</td>
+          <td style="padding:8px; font-size:11px; color:var(--text-muted)">${path||'—'}</td>
+          <td style="padding:8px; text-align:center">
+            <div style="display:flex; align-items:center; gap:6px; justify-content:center">
+              <div class="risk-bar-wrap"><div class="risk-bar-fill" style="width:${risk}%; background:${col}"></div></div>
+              <span style="font-size:13px; font-weight:700; color:${col}">${risk}</span>
+            </div>
+          </td>
+          <td style="padding:8px; text-align:center">
+            <span class="proc-badge risk-${p.risk_level||'LOW'}">${p.risk_level||'LOW'}</span>
+          </td>
+          <td style="padding:8px; font-size:11px; color:var(--text-muted)">${flags||'—'}</td>
+        </tr>
+      `;
+    }).join('');
+  } catch(e) { console.error(e); }
+}
+
+loadProcesses();
+setInterval(loadProcesses, 25000);
+</script>
+{% endblock %}

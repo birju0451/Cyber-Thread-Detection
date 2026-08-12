@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+{% block title %}Access Decisions{% endblock %}
+{% block page_title %}Access Decision Log{% endblock %}
+{% block page_subtitle %}Every access request evaluated by the Zero Trust policy engine{% endblock %}
+
+{% block content %}
+<style>
+.filter-bar { display:flex; gap:12px; margin-bottom:20px; flex-wrap:wrap; align-items:center; }
+.filter-select {
+  background: var(--card-bg); border: 1px solid var(--border); color: var(--text-primary);
+  padding: 8px 12px; border-radius: 8px; font-size: 13px; cursor: pointer;
+}
+.decision-row { border-bottom: 1px solid var(--border); }
+.decision-row:hover { background: rgba(255,255,255,0.02); }
+.decision-badge { padding: 2px 10px; border-radius: 20px; font-size:11px; font-weight:700; letter-spacing:0.04em; }
+.badge-ALLOW { background:rgba(34,197,94,0.15); color:#22c55e; }
+.badge-MONITOR { background:rgba(59,130,246,0.15); color:#60a5fa; }
+.badge-RESTRICT { background:rgba(245,158,11,0.15); color:#f59e0b; }
+.badge-CHALLENGE { background:rgba(249,115,22,0.15); color:#f97316; }
+.badge-BLOCK { background:rgba(239,68,68,0.15); color:#ef4444; }
+.badge-QUARANTINE { background:rgba(168,85,247,0.15); color:#a855f7; }
+.risk-bar { height:4px; border-radius:2px; }
+.expand-panel {
+  display:none; background:var(--bg-secondary); padding:16px 20px;
+  border-bottom:1px solid var(--border);
+}
+.expand-panel.open { display:block; }
+.detail-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; }
+.detail-item label { font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; display:block; }
+.detail-item span { font-size:13px; font-weight:600; color:var(--text-primary); }
+</style>
+
+<!-- Stats Strip -->
+<div id="decision-stats" style="display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:24px">
+  <div class="card" style="text-align:center; padding:16px">
+    <div style="font-size:28px; font-weight:800; color:#22c55e" id="ds-allow">0</div>
+    <div style="font-size:11px; color:var(--text-muted)">ALLOW</div>
+  </div>
+  <div class="card" style="text-align:center; padding:16px">
+    <div style="font-size:28px; font-weight:800; color:#60a5fa" id="ds-monitor">0</div>
+    <div style="font-size:11px; color:var(--text-muted)">MONITOR</div>
+  </div>
+  <div class="card" style="text-align:center; padding:16px">
+    <div style="font-size:28px; font-weight:800; color:#f59e0b" id="ds-restrict">0</div>
+    <div style="font-size:11px; color:var(--text-muted)">RESTRICT</div>
+  </div>
+  <div class="card" style="text-align:center; padding:16px">
+    <div style="font-size:28px; font-weight:800; color:#ef4444" id="ds-block">0</div>
+    <div style="font-size:11px; color:var(--text-muted)">BLOCK</div>
+  </div>
+  <div class="card" style="text-align:center; padding:16px">
+    <div style="font-size:28px; font-weight:800; color:var(--text-primary)" id="ds-total">0</div>
+    <div style="font-size:11px; color:var(--text-muted)">TOTAL</div>
+  </div>
+</div>
+
+<!-- Filter Bar -->
+<div class="filter-bar">
+  <span style="font-size:13px; color:var(--text-muted)">Filter:</span>
+  <select class="filter-select" id="filter-decision" onchange="applyFilter()">
+    <option value="">All Decisions</option>
+    <option value="ALLOW">✅ Allow</option>
+    <option value="MONITOR">👁️ Monitor</option>
+    <option value="RESTRICT">⚠️ Restrict</option>
+    <option value="CHALLENGE">🔐 Challenge</option>
+    <option value="BLOCK">🚫 Block</option>
+    <option value="QUARANTINE">🔒 Quarantine</option>
+  </select>
+  <select class="filter-select" id="filter-event" onchange="applyFilter()">
+    <option value="">All Event Types</option>
+    <option value="url">URL</option>
+    <option value="file">File</option>
+    <option value="process">Process</option>
+    <option value="network">Network</option>
+    <option value="registry">Registry</option>
+  </select>
+  <button class="btn" onclick="loadDecisions()">Refresh</button>
+</div>
+
+<!-- Decisions Table -->
+<div class="card" style="overflow:hidden; padding:0">
+  <table style="width:100%; border-collapse:collapse" id="decisions-table">
+    <thead>
+      <tr style="border-bottom:1px solid var(--border)">
+        <th style="padding:12px 16px; text-align:left; font-size:11px; font-weight:700; color:var(--text-muted); width:40px"></th>
+        <th style="padding:12px 8px; text-align:left; font-size:11px; font-weight:700; color:var(--text-muted)">TIMESTAMP</th>
+        <th style="padding:12px 8px; text-align:left; font-size:11px; font-weight:700; color:var(--text-muted)">EVENT</th>
+        <th style="padding:12px 8px; text-align:left; font-size:11px; font-weight:700; color:var(--text-muted)">PROCESS</th>
+        <th style="padding:12px 8px; text-align:left; font-size:11px; font-weight:700; color:var(--text-muted)">RESOURCE</th>
+        <th style="padding:12px 8px; text-align:center; font-size:11px; font-weight:700; color:var(--text-muted)">RISK</th>
+        <th style="padding:12px 8px; text-align:center; font-size:11px; font-weight:700; color:var(--text-muted)">TRUST</th>
+        <th style="padding:12px 8px; text-align:center; font-size:11px; font-weight:700; color:var(--text-muted)">DECISION</th>
+      </tr>
+    </thead>
+    <tbody id="decisions-tbody">
+      <tr><td colspan="8" style="text-align:center; padding:40px; color:var(--text-muted)">Loading access decisions…</td></tr>
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let allDecisions = [];
+let expanded = null;
+
+function riskColor(r) {
+  if (r <= 20) return '#22c55e'; if (r <= 40) return '#3b82f6';
+  if (r <= 60) return '#f59e0b'; if (r <= 80) return '#f97316';
+  return '#ef4444';
+}
+
+function applyFilter() {
+  const dec = document.getElementById('filter-decision').value;
+  const evt = document.getElementById('filter-event').value;
+  renderTable(allDecisions.filter(d =>
+    (!dec || d.decision === dec) && (!evt || d.event_type === evt)
+  ));
+}
+
+function renderTable(data) {
+  const tbody = document.getElementById('decisions-tbody');
+  if (!data.length) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-muted)">No decisions match your filter</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.map((d, i) => {
+    const risk  = Math.round(d.overall_risk || 0);
+    const trust = Math.round(d.trust_score || 100 - risk);
+    const ts    = d.timestamp ? new Date(d.timestamp).toLocaleTimeString() : '';
+    const proc  = (d.process_name || 'unknown').slice(0, 20);
+    const res   = (d.resource || '').slice(0, 30);
+    const dec   = d.decision || 'MONITOR';
+    return `
+      <tr class="decision-row" onclick="toggleExpand(${i})" style="cursor:pointer">
+        <td style="padding:10px 16px; color:var(--text-muted); font-size:12px">›</td>
+        <td style="padding:10px 8px; font-size:11px; color:var(--text-muted)">${ts}</td>
+        <td style="padding:10px 8px; font-size:12px; color:var(--text-secondary)">${d.event_type||'?'}</td>
+        <td style="padding:10px 8px; font-size:12px; font-weight:600">${proc}</td>
+        <td style="padding:10px 8px; font-size:11px; color:var(--text-muted)">${res}</td>
+        <td style="padding:10px 8px; text-align:center">
+          <div style="font-size:14px; font-weight:700; color:${riskColor(risk)}">${risk}</div>
+        </td>
+        <td style="padding:10px 8px; text-align:center">
+          <div style="font-size:12px; font-weight:700; color:${riskColor(100-trust)}">${trust}%</div>
+        </td>
+        <td style="padding:10px 8px; text-align:center">
+          <span class="decision-badge badge-${dec}">${dec}</span>
+        </td>
+      </tr>
+      <tr id="expand-${i}"><td colspan="8" class="expand-panel" id="expand-panel-${i}">
+        <div class="detail-grid">
+          <div class="detail-item"><label>Policy</label><span>${d.policy_name||'Default'}</span></div>
+          <div class="detail-item"><label>Reason</label><span>${(d.decision_reason||'').slice(0,60)}</span></div>
+          <div class="detail-item"><label>Identity</label><span>${d.identity?.username||'?'} (${d.identity?.privilege||'?'})</span></div>
+          <div class="detail-item"><label>Device Trust</label><span>${d.device?.trust_score||'?'}</span></div>
+          <div class="detail-item"><label>App Trust</label><span>${d.application?.trust_score||'?'}</span></div>
+          <div class="detail-item"><label>Process Risk</label><span>${d.process?.process_risk_score||0}</span></div>
+          <div class="detail-item"><label>Pipeline ms</label><span>${d.pipeline_ms||'?'}</span></div>
+          <div class="detail-item"><label>ABTD Score</label><span>${d.abtd_threat_score||0}</span></div>
+        </div>
+      </td></tr>
+    `;
+  }).join('');
+}
+
+function toggleExpand(idx) {
+  const panel = document.getElementById(`expand-panel-${idx}`);
+  if (!panel) return;
+  if (expanded !== null && expanded !== idx) {
+    const prev = document.getElementById(`expand-panel-${expanded}`);
+    if (prev) prev.classList.remove('open');
+  }
+  panel.classList.toggle('open');
+  expanded = panel.classList.contains('open') ? idx : null;
+}
+
+async function loadDecisions() {
+  try {
+    const [decR, statsR] = await Promise.all([
+      fetch('/api/zero-trust/access-decisions'),
+      fetch('/api/zero-trust/overview'),
+    ]);
+    const decJ   = await decR.json();
+    const statsJ = await statsR.json();
+
+    allDecisions = decJ.data?.items || [];
+    applyFilter();
+
+    const stats = statsJ.data?.db_decision_stats || statsJ.data?.decision_stats || {};
+    document.getElementById('ds-allow').textContent   = stats.allow || stats.allowed || 0;
+    document.getElementById('ds-monitor').textContent = stats.monitor || 0;
+    document.getElementById('ds-restrict').textContent= stats.restrict || stats.restricted || 0;
+    document.getElementById('ds-block').textContent   = stats.block || stats.blocked || 0;
+    document.getElementById('ds-total').textContent   = stats.total || allDecisions.length;
+  } catch(e) { console.error(e); }
+}
+
+loadDecisions();
+setInterval(loadDecisions, 20000);
+</script>
+{% endblock %}

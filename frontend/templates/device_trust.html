@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% block title %}Device Trust{% endblock %}
+{% block page_title %}Device Trust Assessment{% endblock %}
+{% block page_subtitle %}Windows endpoint security posture — continuous compliance monitoring{% endblock %}
+
+{% block content %}
+<style>
+.check-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; margin-bottom:24px; }
+.check-card { background:var(--card-bg); border:1px solid var(--border); border-radius:12px; padding:16px; }
+.check-row { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.04); }
+.check-row:last-child { border-bottom:none; }
+.check-name { font-size:13px; color:var(--text-secondary); }
+.check-status { font-size:12px; font-weight:700; padding:2px 8px; border-radius:10px; }
+.ok  { background:rgba(34,197,94,0.12); color:#22c55e; }
+.bad { background:rgba(239,68,68,0.12); color:#ef4444; }
+.warn{ background:rgba(245,158,11,0.12); color:#f59e0b; }
+.trust-gauge { width:100%; height:18px; background:rgba(255,255,255,0.05); border-radius:9px; overflow:hidden; margin-top:8px; }
+.trust-gauge-fill { height:100%; border-radius:9px; transition:width 0.8s ease; }
+</style>
+
+<!-- Hero: Trust Score -->
+<div style="display:grid; grid-template-columns:280px 1fr; gap:20px; margin-bottom:24px; align-items:start">
+  <div class="card" style="text-align:center; padding:28px">
+    <div style="font-size:12px; font-weight:700; color:var(--text-muted); letter-spacing:0.08em; margin-bottom:8px">DEVICE TRUST SCORE</div>
+    <div style="font-size:64px; font-weight:900; line-height:1" id="device-score">—</div>
+    <div style="margin:12px 0">
+      <div class="trust-gauge"><div class="trust-gauge-fill" id="device-gauge" style="width:0%; background:#3b82f6"></div></div>
+    </div>
+    <div style="font-size:16px; font-weight:700" id="device-level">Loading…</div>
+    <div style="font-size:11px; color:var(--text-muted); margin-top:4px" id="device-assessed">—</div>
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-title">⚠️ Risk Flags</div></div>
+    <div id="device-flags">
+      <div style="text-align:center; padding:20px; color:var(--text-muted)">Loading…</div>
+    </div>
+  </div>
+</div>
+
+<!-- Check Grid -->
+<div class="check-grid">
+  <div class="check-card">
+    <div style="font-size:13px; font-weight:700; margin-bottom:12px; color:var(--text-primary)">🔥 Firewall</div>
+    <div id="fw-details">Loading…</div>
+  </div>
+  <div class="check-card">
+    <div style="font-size:13px; font-weight:700; margin-bottom:12px; color:var(--text-primary)">🛡️ Antivirus</div>
+    <div id="av-details">Loading…</div>
+  </div>
+  <div class="check-card">
+    <div style="font-size:13px; font-weight:700; margin-bottom:12px; color:var(--text-primary)">📦 Updates</div>
+    <div id="patch-details">Loading…</div>
+  </div>
+  <div class="check-card">
+    <div style="font-size:13px; font-weight:700; margin-bottom:12px; color:var(--text-primary)">🔒 Secure Boot & Encryption</div>
+    <div id="sb-details">Loading…</div>
+  </div>
+  <div class="check-card">
+    <div style="font-size:13px; font-weight:700; margin-bottom:12px; color:var(--text-primary)">🖥️ Windows Version</div>
+    <div id="win-details">Loading…</div>
+  </div>
+  <div class="check-card">
+    <div style="font-size:13px; font-weight:700; margin-bottom:12px; color:var(--text-primary)">⚙️ Security Services</div>
+    <div id="svc-details">Loading…</div>
+  </div>
+</div>
+
+<!-- System Resources -->
+<div class="card">
+  <div class="card-header"><div class="card-title">📊 System Resources</div></div>
+  <div id="resources-display" style="display:grid; grid-template-columns:repeat(3,1fr); gap:16px; padding:8px 0">
+    <div style="text-align:center"><div style="font-size:28px; font-weight:800" id="res-cpu">—</div><div style="font-size:12px; color:var(--text-muted)">CPU %</div></div>
+    <div style="text-align:center"><div style="font-size:28px; font-weight:800" id="res-ram">—</div><div style="font-size:12px; color:var(--text-muted)">RAM %</div></div>
+    <div style="text-align:center"><div style="font-size:28px; font-weight:800" id="res-disk">—</div><div style="font-size:12px; color:var(--text-muted)">Disk %</div></div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function statusBadge(ok, trueText='OK', falseText='FAIL') {
+  return `<span class="check-status ${ok ? 'ok' : 'bad'}">${ok ? trueText : falseText}</span>`;
+}
+
+function trustColor(s) {
+  if (s>=85) return '#22c55e'; if (s>=65) return '#3b82f6';
+  if (s>=40) return '#f59e0b'; return '#ef4444';
+}
+
+async function loadDeviceTrust() {
+  try {
+    const r = await fetch('/api/zero-trust/device-trust');
+    const j = await r.json();
+    if (j.status !== 'ok') return;
+    const d = j.data;
+
+    const score = d.device_trust_score || 0;
+    document.getElementById('device-score').textContent = score;
+    document.getElementById('device-score').style.color = trustColor(score);
+    document.getElementById('device-gauge').style.width = score + '%';
+    document.getElementById('device-gauge').style.background = trustColor(score);
+    document.getElementById('device-level').textContent = d.device_trust_level || '';
+    document.getElementById('device-assessed').textContent = 'Last assessed: ' + new Date(d.assessed_at || Date.now()).toLocaleTimeString();
+
+    // Flags
+    const flags = d.risk_flags || [];
+    document.getElementById('device-flags').innerHTML = flags.length
+      ? flags.map(f => `<div style="padding:8px 0; border-bottom:1px solid var(--border); font-size:13px; color:var(--text-secondary)">⚠️ ${f}</div>`).join('')
+      : '<div style="color:#22c55e; padding:8px">✅ No risk flags detected</div>';
+
+    // Checks
+    const c = d.checks || {};
+
+    // Firewall
+    const fw = c.firewall || {};
+    document.getElementById('fw-details').innerHTML = Object.entries(fw.profiles || {}).map(([p,v]) =>
+      `<div class="check-row"><span class="check-name">${p} Profile</span>${statusBadge(v)}</div>`
+    ).join('') + `<div class="check-row"><span class="check-name">Overall</span>${statusBadge(fw.enabled)}</div>`;
+
+    // AV
+    const av = c.antivirus || {};
+    document.getElementById('av-details').innerHTML = `
+      <div class="check-row"><span class="check-name">Real-Time Protection</span>${statusBadge(av.real_time_protection)}</div>
+      <div class="check-row"><span class="check-name">Signatures Current</span>${statusBadge(!av.signatures_outdated)}</div>
+      <div class="check-row"><span class="check-name">AV Product</span><span style="font-size:12px;color:var(--text-muted)">${av.av_product||'Unknown'}</span></div>
+    `;
+
+    // Patches
+    const p = c.patch_status || {};
+    const daysOk = (p.days_since_update || 999) <= 14;
+    document.getElementById('patch-details').innerHTML = `
+      <div class="check-row"><span class="check-name">Days Since Update</span><span class="check-status ${daysOk?'ok':p.days_since_update<=30?'warn':'bad'}">${p.days_since_update ?? '?'} days</span></div>
+      <div class="check-row"><span class="check-name">Last Update</span><span style="font-size:11px;color:var(--text-muted)">${p.last_update||'Unknown'}</span></div>
+    `;
+
+    // Secure Boot + Encryption
+    const sb  = c.secure_boot || {};
+    const enc = c.disk_encryption || {};
+    document.getElementById('sb-details').innerHTML = `
+      <div class="check-row"><span class="check-name">Secure Boot</span>${statusBadge(sb.enabled,'Enabled','Disabled')}</div>
+      <div class="check-row"><span class="check-name">BitLocker</span>${statusBadge(enc.any_encrypted,'Active','Not Active')}</div>
+    `;
+
+    // Windows version
+    const win = c.windows_version || {};
+    document.getElementById('win-details').innerHTML = `
+      <div class="check-row"><span class="check-name">Version</span><span style="font-size:12px;color:var(--text-muted)">${win.version||'?'}</span></div>
+      <div class="check-row"><span class="check-name">Build</span><span style="font-size:12px;color:var(--text-muted)">${win.build||'?'}</span></div>
+      <div class="check-row"><span class="check-name">Supported</span>${statusBadge(win.is_supported)}</div>
+      <div class="check-row"><span class="check-name">Windows 11</span>${statusBadge(win.is_win11,'Yes','No')}</div>
+    `;
+
+    // Services
+    const svcs = c.security_services?.services || {};
+    document.getElementById('svc-details').innerHTML = Object.entries(svcs).map(([name,ok]) =>
+      `<div class="check-row"><span class="check-name">${name}</span>${statusBadge(ok,'Running','Stopped')}</div>`
+    ).join('') || '<div style="color:var(--text-muted);font-size:13px">No service data</div>';
+
+    // Resources
+    const res = c.resources || {};
+    document.getElementById('res-cpu').textContent  = res.cpu_percent ? res.cpu_percent.toFixed(1)+'%' : '—';
+    document.getElementById('res-ram').textContent  = res.ram_percent ? res.ram_percent.toFixed(1)+'%' : '—';
+    document.getElementById('res-disk').textContent = res.disk_percent ? res.disk_percent.toFixed(1)+'%' : '—';
+
+  } catch(e) { console.error(e); }
+}
+
+loadDeviceTrust();
+setInterval(loadDeviceTrust, 30000);
+</script>
+{% endblock %}

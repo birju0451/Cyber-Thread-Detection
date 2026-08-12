@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Application Trust{% endblock %}
+{% block page_title %}Application Trust{% endblock %}
+{% block page_subtitle %}Digital signature verification, publisher trust, path analysis for all tracked applications{% endblock %}
+{% block content %}
+<div class="card" style="overflow:hidden; padding:0; margin-bottom:20px">
+  <div style="padding:14px 20px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between">
+    <div style="font-size:14px; font-weight:700">Tracked Applications</div>
+    <span id="app-count" class="badge badge-blue">0</span>
+  </div>
+  <table style="width:100%; border-collapse:collapse">
+    <thead><tr style="border-bottom:1px solid var(--border)">
+      <th style="padding:10px 16px; text-align:left; font-size:11px; font-weight:700; color:var(--text-muted)">APPLICATION</th>
+      <th style="padding:10px 8px; text-align:center; font-size:11px; font-weight:700; color:var(--text-muted)">SIGNED</th>
+      <th style="padding:10px 8px; text-align:left; font-size:11px; font-weight:700; color:var(--text-muted)">PUBLISHER</th>
+      <th style="padding:10px 8px; text-align:center; font-size:11px; font-weight:700; color:var(--text-muted)">PATH RISK</th>
+      <th style="padding:10px 8px; text-align:center; font-size:11px; font-weight:700; color:var(--text-muted)">TRUST</th>
+      <th style="padding:10px 8px; text-align:left; font-size:11px; font-weight:700; color:var(--text-muted)">FLAGS</th>
+    </tr></thead>
+    <tbody id="app-tbody"><tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-muted)">Loading…</td></tr></tbody>
+  </table>
+</div>
+<div class="card">
+  <div class="card-header"><div class="card-title">🔑 Protected Resources</div></div>
+  <div id="resources-list"><div style="text-align:center;padding:20px;color:var(--text-muted)">Loading…</div></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function tc(s){return s>=75?'#22c55e':s>=50?'#3b82f6':s>=30?'#f59e0b':'#ef4444';}
+async function load() {
+  const [aR, rR] = await Promise.all([fetch('/api/zero-trust/app-trust'), fetch('/api/zero-trust/resources')]);
+  const apps = await aR.json(); const ress = await rR.json();
+  document.getElementById('app-count').textContent = apps.count || 0;
+  const tbody = document.getElementById('app-tbody');
+  if (apps.data?.length) {
+    tbody.innerHTML = apps.data.map(a => {
+      const pr = {'TRUSTED':'✅','SUSPICIOUS':'🚨','UNKNOWN':'❓'}[a.path_risk] || '❓';
+      return `<tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px 16px;font-size:13px;font-weight:600">${a.app_name}</td>
+        <td style="padding:8px;text-align:center">${a.is_signed?'✅':'❌'}</td>
+        <td style="padding:8px;font-size:12px;color:var(--text-muted)">${(a.publisher||'Unknown').slice(0,25)}</td>
+        <td style="padding:8px;text-align:center">${pr} ${a.path_risk}</td>
+        <td style="padding:8px;text-align:center;font-size:15px;font-weight:700;color:${tc(a.trust_score)}">${a.trust_score}</td>
+        <td style="padding:8px;font-size:11px;color:var(--text-muted)">${(a.risk_flags||[]).join('; ').slice(0,50)||'—'}</td>
+      </tr>`;
+    }).join('');
+  } else {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-muted)">No applications tracked yet</td></tr>';
+  }
+  if (ress.data?.length) {
+    const senColors = {PUBLIC:'#6b7280',INTERNAL:'#3b82f6',SENSITIVE:'#f59e0b',CRITICAL:'#ef4444'};
+    document.getElementById('resources-list').innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px">` +
+      ress.data.slice(0,20).map(r => `<div style="padding:10px 14px;background:var(--bg-secondary);border-radius:8px;border-left:3px solid ${senColors[r.sensitivity]||'#6b7280'}">
+        <div style="font-size:12px;font-weight:700;color:${senColors[r.sensitivity]}">${r.sensitivity}</div>
+        <div style="font-size:12px;color:var(--text-primary);margin-top:2px">${r.description}</div>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:2px">${(r.path||'').slice(0,50)}</div>
+      </div>`).join('') + `</div>`;
+  }
+}
+load(); setInterval(load, 30000);
+</script>
+{% endblock %}

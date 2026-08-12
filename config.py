@@ -43,11 +43,21 @@ MONGO_URI  : str = os.getenv("MONGO_URI", "mongodb+srv://kkaryacse_db_user:DFaJp
 MONGO_DB   : str = os.getenv("MONGO_DB",  "abtd")
 
 COLLECTIONS = {
-    "scans"     : "scans",
-    "alerts"    : "alerts",
-    "settings"  : "settings",
-    "users"     : "users",
-    "quarantine": "quarantine",
+    # v1.0 collections
+    "scans"           : "scans",
+    "alerts"          : "alerts",
+    "settings"        : "settings",
+    "users"           : "users",
+    "quarantine"      : "quarantine",
+    # v2.0 Zero Trust collections
+    "trust_scores"    : "trust_scores",
+    "access_decisions": "access_decisions",
+    "incidents"       : "incidents",
+    "device_posture"  : "device_posture",
+    "behavior_profiles": "behavior_profiles",
+    "policies"        : "zt_policies",
+    "audit_log"       : "audit_log",
+    "assessments"     : "assessments",
 }
 
 # ---------------------------------------------------------------------------
@@ -177,3 +187,60 @@ LOG_BACKUP_COUNT: int = 5
 # ---------------------------------------------------------------------------
 
 PAGE_SIZE: int = 25
+
+# ---------------------------------------------------------------------------
+# Zero Trust Architecture Settings (v2.0)
+# ---------------------------------------------------------------------------
+
+# Simulation mode: when True, destructive response actions are logged only
+# Set ZT_SIMULATION_MODE=false in .env to enable real actions
+ZT_SIMULATION_MODE: bool = os.getenv("ZT_SIMULATION_MODE", "true").lower() != "false"
+
+# Trust score thresholds (trust = 100 - risk)
+ZT_TRUST_THRESHOLDS = {
+    "TRUSTED"       : 90,   # score >= 90 → Trusted
+    "LOW_RISK"      : 70,   # score >= 70 → Low Risk
+    "MODERATE_RISK" : 50,   # score >= 50 → Moderate Risk
+    "HIGH_RISK"     : 30,   # score >= 30 → High Risk
+    "UNTRUSTED"     : 0,    # score <  30 → Untrusted
+}
+
+# Multi-signal risk weights for Zero Trust risk calculator
+# Must sum to 1.0
+ZT_RISK_WEIGHTS = {
+    "identity" : 0.15,
+    "device"   : 0.20,
+    "app"      : 0.15,
+    "process"  : 0.15,
+    "url"      : 0.10,
+    "file"     : 0.10,
+    "behavior" : 0.10,
+    "network"  : 0.05,
+}
+
+# Minimum trust scores required per resource sensitivity level
+ZT_MIN_TRUST_FOR_SENSITIVITY = {
+    "PUBLIC"   : 0,
+    "INTERNAL" : 40,
+    "SENSITIVE": 65,
+    "CRITICAL" : 85,
+}
+
+# Zero Trust access decision types
+ZT_DECISIONS = ["ALLOW", "MONITOR", "RESTRICT", "CHALLENGE", "QUARANTINE", "BLOCK"]
+
+# Default entity trust starting scores
+ZT_DEFAULT_TRUST = {
+    "user"      : 75,
+    "device"    : 70,
+    "process"   : 60,
+    "app"       : 65,
+    "connection": 50,
+}
+
+# Correlation engine: time window for grouping events into incidents (seconds)
+ZT_CORRELATION_WINDOW: int = int(os.getenv("ZT_CORRELATION_WINDOW", "300"))
+
+# Security Assessment
+ASSESSMENT_DIR: Path = BASE_DIR / "reports"
+ASSESSMENT_DIR.mkdir(parents=True, exist_ok=True)

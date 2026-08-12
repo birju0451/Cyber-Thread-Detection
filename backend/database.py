@@ -73,7 +73,7 @@ class Database:
             return False
 
     def _ensure_indexes(self) -> None:
-        """Create indexes for performance."""
+        """Create indexes for performance — covers both v1.0 and v2.0 collections."""
         try:
             scans = self._db[config.COLLECTIONS["scans"]]
             scans.create_index([("timestamp", DESCENDING)])
@@ -84,6 +84,26 @@ class Database:
             alerts.create_index([("timestamp", DESCENDING)])
             alerts.create_index([("alert_type", ASCENDING)])
             alerts.create_index([("severity", ASCENDING)])
+
+            # v2.0 Zero Trust indexes
+            decisions = self._db[config.COLLECTIONS["access_decisions"]]
+            decisions.create_index([("timestamp", DESCENDING)])
+            decisions.create_index([("decision", ASCENDING)])
+            decisions.create_index([("process_name", ASCENDING)])
+            decisions.create_index([("overall_risk", DESCENDING)])
+
+            incidents = self._db[config.COLLECTIONS["incidents"]]
+            incidents.create_index([("created_at", DESCENDING)])
+            incidents.create_index([("severity", ASCENDING)])
+            incidents.create_index([("status", ASCENDING)])
+
+            audit = self._db[config.COLLECTIONS["audit_log"]]
+            audit.create_index([("timestamp", DESCENDING)])
+            audit.create_index([("entity_type", ASCENDING)])
+
+            assessments = self._db[config.COLLECTIONS["assessments"]]
+            assessments.create_index([("assessed_at", DESCENDING)])
+
         except Exception as e:
             log_system.warning(f"Index creation warning: {e}")
 
@@ -343,6 +363,232 @@ class Database:
         except Exception as e:
             log_system.error(f"save_settings failed: {e}")
             return False
+
+
+    # ── Zero Trust: Access Decisions ──────────────────────────────────────────
+
+    def log_access_decision(self, decision: dict) -> str | None:
+        """
+        Persist a Zero Trust access decision.
+        Called by the AccessController after every evaluation.
+        """
+        if not self._connected:
+            return None
+        try:
+            from datetime import datetime, timezone
+            doc = {**decision, "logged_at": datetime.now(timezone.utc)}
+            # Trim large nested fields to avoid exceeding MongoDB document limit
+            for key in ("signals", "risk_calculation", "process"):
+                if key in doc and isinstance(doc[key], dict):
+                    # Keep but don't store the full nested history
+                    pass
+            res = self._db[config.COLLECTIONS["access_decisions"]].insert_one(doc)
+            return str(res.inserted_id)
+        except Exception as e:
+            log_system.error(f"log_access_decision failed: {e}")
+            return None
+
+    def get_access_decisions(
+        self,
+        page        : int = 1,
+        page_size   : int = None,
+        decision    : str | None = None,
+        event_type  : str | None = None,
+    ) -> dict:
+        """Return paginated Zero Trust access decisions."""
+        if not self._connected:
+            return {"items": [], "total": 0, "page": page, "pages": 0}
+        page_size = page_size or config.PAGE_SIZE
+        skip = (page - 1) * page_size
+        query = {}
+        if decision:
+            query["decision"] = decision.upper()
+        if event_type:
+            query["event_type"] = event_type
+        try:
+            col   = self._db[config.COLLECTIONS["access_decisions"]]
+            total = col.count_documents(query)
+            docs  = list(
+                col.find(query, {"_id": 0})
+                   .sort("timestamp", DESCENDING)
+                   .skip(skip)
+                   .limit(page_size)
+            )
+            return {
+                "items" : docs,
+                "total" : total,
+                "page"  : page,
+                "pages" : (total + page_size - 1) // page_size,
+            }
+        except Exception as e:
+            log_system.error(f"get_access_decisions failed: {e}")
+            return {"items": [], "total": 0, "page": page, "pages": 0}
+
+    def get_decision_stats(self) -> dict:
+        """Return aggregate decision statistics for dashboard."""
+        if not self._connected:
+            return {"allow": 0, "monitor": 0, "restrict": 0, "block": 0, "total": 0}
+        try:
+            col      = self._db[config.COLLECTIONS["access_decisions"]]
+            pipeline = [
+                {"$group": {"_id": "$decision", "count": {"$sum": 1}}}
+            ]
+            results = {r["_id"]: r["count"] for r in col.aggregate(pipeline)}
+            total   = sum(results.values())
+            return {
+                "allow"    : results.get("ALLOW", 0),
+                "monitor"  : results.get("MONITOR", 0),
+                "restrict" : results.get("RESTRICT", 0) + results.get("CHALLENGE", 0),
+                "block"    : results.get("BLOCK", 0) + results.get("QUARANTINE", 0),
+                "total"    : total,
+                "by_type"  : results,
+            }
+        except Exception as e:
+            log_system.error(f"get_decision_stats failed: {e}")
+            return {"allow": 0, "monitor": 0, "restrict": 0, "block": 0, "total": 0}
+
+    # ── Zero Trust: Incidents ─────────────────────────────────────────────────
+
+    def log_incident(self, incident: dict) -> str | None:
+        """Persist a correlated security incident."""
+        if not self._connected:
+            return None
+        try:
+            from datetime import datetime, timezone
+            doc = {**incident, "logged_at": datetime.now(timezone.utc)}
+            res = self._db[config.COLLECTIONS["incidents"]].insert_one(doc)
+            return str(res.inserted_id)
+        except Exception as e:
+            log_system.error(f"log_incident failed: {e}")
+            return None
+
+    def get_incidents(
+        self,
+        status  : str | None = None,
+        severity: str | None = None,
+        limit   : int = 50,
+    ) -> list:
+        """Return recent incidents from database."""
+        if not self._connected:
+            return []
+        try:
+            query = {}
+            if status:
+                query["status"]   = status.upper()
+            if severity:
+                query["severity"] = severity.upper()
+            return list(
+                self._db[config.COLLECTIONS["incidents"]]
+                .find(query, {"_id": 0})
+                .sort("created_at", DESCENDING)
+                .limit(limit)
+            )
+        except Exception as e:
+            log_system.error(f"get_incidents failed: {e}")
+            return []
+
+    # ── Zero Trust: Device Posture ────────────────────────────────────────────
+
+    def save_device_posture(self, posture: dict) -> str | None:
+        """Save a device trust assessment snapshot."""
+        if not self._connected:
+            return None
+        try:
+            from datetime import datetime, timezone
+            doc = {**posture, "logged_at": datetime.now(timezone.utc)}
+            res = self._db[config.COLLECTIONS["device_posture"]].insert_one(doc)
+            return str(res.inserted_id)
+        except Exception as e:
+            log_system.error(f"save_device_posture failed: {e}")
+            return None
+
+    def get_device_posture_history(self, limit: int = 10) -> list:
+        """Return recent device posture assessments."""
+        if not self._connected:
+            return []
+        try:
+            return list(
+                self._db[config.COLLECTIONS["device_posture"]]
+                .find({}, {"_id": 0})
+                .sort("logged_at", DESCENDING)
+                .limit(limit)
+            )
+        except Exception as e:
+            log_system.error(f"get_device_posture_history failed: {e}")
+            return []
+
+    # ── Zero Trust: Security Assessments ─────────────────────────────────────
+
+    def save_assessment(self, assessment: dict) -> str | None:
+        """Save a full security assessment result."""
+        if not self._connected:
+            return None
+        try:
+            from datetime import datetime, timezone
+            doc = {**assessment, "saved_at": datetime.now(timezone.utc)}
+            res = self._db[config.COLLECTIONS["assessments"]].insert_one(doc)
+            return str(res.inserted_id)
+        except Exception as e:
+            log_system.error(f"save_assessment failed: {e}")
+            return None
+
+    def get_latest_assessment(self) -> dict | None:
+        """Return the most recent security assessment."""
+        if not self._connected:
+            return None
+        try:
+            doc = (
+                self._db[config.COLLECTIONS["assessments"]]
+                .find_one({}, {"_id": 0}, sort=[("saved_at", DESCENDING)])
+            )
+            return doc
+        except Exception as e:
+            log_system.error(f"get_latest_assessment failed: {e}")
+            return None
+
+    def get_assessment_history(self, limit: int = 10) -> list:
+        """Return assessment history."""
+        if not self._connected:
+            return []
+        try:
+            return list(
+                self._db[config.COLLECTIONS["assessments"]]
+                .find({}, {"_id": 0, "findings": 0})
+                .sort("saved_at", DESCENDING)
+                .limit(limit)
+            )
+        except Exception as e:
+            log_system.error(f"get_assessment_history failed: {e}")
+            return []
+
+    # ── Audit Log ─────────────────────────────────────────────────────────────
+
+    def write_audit_log(
+        self,
+        entity_type : str,
+        entity_id   : str,
+        action      : str,
+        outcome     : str,
+        details     : dict | None = None,
+    ) -> str | None:
+        """Write an immutable audit log entry."""
+        if not self._connected:
+            return None
+        try:
+            from datetime import datetime, timezone
+            doc = {
+                "entity_type": entity_type,
+                "entity_id"  : entity_id,
+                "action"     : action,
+                "outcome"    : outcome,
+                "details"    : details or {},
+                "timestamp"  : datetime.now(timezone.utc),
+            }
+            res = self._db[config.COLLECTIONS["audit_log"]].insert_one(doc)
+            return str(res.inserted_id)
+        except Exception as e:
+            log_system.error(f"write_audit_log failed: {e}")
+            return None
 
 
 # Singleton — imported by all routes and the agent

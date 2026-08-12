@@ -156,22 +156,35 @@ class ABTDEngine:
                 import numpy as np
                 from ml.feature_engineering import extract_file_features, MALWARE_FEATURE_COLS
 
-                bundle   = joblib.load(config.MALWARE_MODEL_PATH)
-                pipeline = bundle["pipeline"]
-                feat_cols= bundle["feature_cols"]
-                features = extract_file_features(file_path)
-                X        = np.array([features.get(c, 0.0) for c in feat_cols]).reshape(1, -1)
-                proba    = pipeline.predict_proba(X)[0]
-                rf_score = float(proba[1] if len(proba) > 1 else proba[0]) * 100
-                if rf_score > 50:
-                    reasons.append(f"Malware classifier flagged this file (confidence: {rf_score:.1f}%)")
+        except Exception:
+            rule_result = {"score": 0, "reasons": [], "flags": {}}
+            rule_score  = 0.0
+
+        # ── File Analyzer (entropy + PE + malware ML) ─────────────────
+        rf_score      = 0.0
+        anomaly_score = 0.0
+        fa_result     = {}
+        try:
+            from engine.file_analyzer import analyze_file as fa_analyze
+            fa_result = fa_analyze(file_path)
+            rf_score  = float(fa_result.get("ml_score", 0))
+            for r in fa_result.get("reasons", []):
+                if r not in reasons:
+                    reasons.append(r)
+
+            # Entropy anomaly → anomaly detection layer
+            entropy = fa_result.get("entropy", 0.0)
+            if entropy > 7.5:
+                anomaly_score = min((entropy - 7.0) * 50, 85)
+            elif entropy > 7.0:
+                anomaly_score = min((entropy - 7.0) * 30, 60)
         except Exception as e:
-            reasons.append(f"Malware model unavailable: {e}")
+            reasons.append(f"File analyzer error: {e}")
 
         # ── Score Fusion ──────────────────────────────────────────────
         fusion = threat_scorer.fuse(
             rf_score         = rf_score,
-            anomaly_score    = 0.0,
+            anomaly_score    = anomaly_score,
             rule_score       = rule_score,
             reputation_score = 0.0,
         )
@@ -181,6 +194,11 @@ class ABTDEngine:
         return {
             "file_path"          : str(file_path),
             "file_name"          : path.name,
+            "file_size_bytes"    : fa_result.get("file_size_bytes", 0),
+            "extension"          : fa_result.get("extension", path.suffix.lower()),
+            "sha256"             : fa_result.get("sha256", ""),
+            "entropy"            : fa_result.get("entropy", 0.0),
+            "is_pe"              : fa_result.get("is_pe", False),
             "target_type"        : "file",
             "timestamp"          : datetime.now(timezone.utc).isoformat(),
             "prediction"         : fusion["classification"].lower(),
@@ -192,10 +210,10 @@ class ABTDEngine:
             "icon"               : fusion["icon"],
             "reasons"            : reasons if reasons else ["No specific threat indicators found"],
             "detection_modules"  : {
-                "random_forest"  : {"score": rf_score,  "label": "malware" if rf_score >= 50 else "benign"},
-                "anomaly"        : {"score": 0.0,       "label": "normal"},
-                "rules"          : {"score": rule_score, "flags": rule_result.get("flags", {}) if 'rule_result' in dir() else {}},
-                "reputation"     : {"score": 0.0,       "details": {}},
+                "random_forest"  : {"score": rf_score,      "label": "malware" if rf_score >= 50 else "benign"},
+                "anomaly"        : {"score": anomaly_score,  "label": "anomaly" if anomaly_score > 50 else "normal"},
+                "rules"          : {"score": rule_score,     "flags": rule_result.get("flags", {})},
+                "reputation"     : {"score": 0.0,            "details": {}},
             },
             "layer_scores"       : fusion["layer_scores"],
             "analysis_time_ms"   : elapsed_ms,

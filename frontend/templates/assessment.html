@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+{% block title %}Security Assessment{% endblock %}
+{% block page_title %}Security Assessment{% endblock %}
+{% block page_subtitle %}Comprehensive endpoint security evaluation — posture, ZT readiness, behavioral risk{% endblock %}
+
+{% block content %}
+<style>
+.assessment-scores { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:16px; margin-bottom:24px; }
+.score-card { background:var(--card-bg); border:1px solid var(--border); border-radius:14px; padding:20px; text-align:center; }
+.score-num { font-size:52px; font-weight:900; line-height:1; }
+.score-label { font-size:11px; font-weight:700; color:var(--text-muted); margin-top:4px; text-transform:uppercase; letter-spacing:0.08em; }
+.score-bar { height:6px; border-radius:3px; margin:10px auto; max-width:120px; background:rgba(255,255,255,0.06); }
+.score-bar-fill { height:100%; border-radius:3px; transition:width 1s ease; }
+.finding-item { display:flex; gap:12px; padding:10px 0; border-bottom:1px solid rgba(255,255,255,0.04); }
+.finding-item:last-child { border-bottom:none; }
+.finding-sev { padding:2px 8px; border-radius:8px; font-size:11px; font-weight:700; flex-shrink:0; align-self:flex-start; margin-top:1px; }
+.sev-CRITICAL { background:rgba(239,68,68,0.15); color:#ef4444; }
+.sev-HIGH     { background:rgba(249,115,22,0.15); color:#f97316; }
+.sev-MEDIUM   { background:rgba(245,158,11,0.15); color:#f59e0b; }
+.sev-LOW      { background:rgba(59,130,246,0.15);  color:#60a5fa; }
+.finding-content { flex:1; }
+.finding-title { font-size:13px; font-weight:600; color:var(--text-primary); }
+.finding-rec { font-size:12px; color:var(--text-muted); margin-top:2px; }
+.progress-section { display:none; }
+.progress-section.show { display:block; }
+.progress-bar { height:12px; background:rgba(255,255,255,0.06); border-radius:6px; overflow:hidden; margin:8px 0; }
+.progress-fill { height:100%; background:linear-gradient(90deg, #3b82f6, #8b5cf6); border-radius:6px; transition:width 0.5s ease; }
+</style>
+
+<!-- Run Assessment -->
+<div class="card" style="margin-bottom:24px">
+  <div class="card-header">
+    <div>
+      <div class="card-title">🔍 Full Security Assessment</div>
+      <div style="font-size:12px; color:var(--text-muted); margin-top:2px">Runs a 12-category endpoint security evaluation (takes 15–60 seconds)</div>
+    </div>
+    <button class="btn btn-primary" id="run-btn" onclick="runAssessment()">▶ Run Assessment</button>
+  </div>
+  <div class="progress-section" id="progress-section">
+    <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+    <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--text-muted)">
+      <span id="progress-stage">Starting…</span>
+      <span id="progress-pct">0%</span>
+    </div>
+  </div>
+</div>
+
+<!-- Results (hidden until assessment runs) -->
+<div id="results-section" style="display:none">
+
+  <!-- Score Cards -->
+  <div class="assessment-scores">
+    <div class="score-card">
+      <div class="score-num" id="score-posture">—</div>
+      <div style="margin:8px 0"><div class="score-bar"><div class="score-bar-fill" id="bar-posture" style="width:0%"></div></div></div>
+      <div class="score-label">Security Posture</div>
+    </div>
+    <div class="score-card">
+      <div class="score-num" id="score-zt">—</div>
+      <div style="margin:8px 0"><div class="score-bar"><div class="score-bar-fill" id="bar-zt" style="width:0%"></div></div></div>
+      <div class="score-label">Zero Trust Readiness</div>
+    </div>
+    <div class="score-card">
+      <div class="score-num" id="score-behavior">—</div>
+      <div style="margin:8px 0"><div class="score-bar"><div class="score-bar-fill" id="bar-behavior" style="width:0%;background:#f59e0b"></div></div></div>
+      <div class="score-label">Behavioral Risk</div>
+    </div>
+    <div class="score-card">
+      <div class="score-num" id="score-risk">—</div>
+      <div style="margin:8px 0"><div class="score-bar"><div class="score-bar-fill" id="bar-risk" style="width:0%;background:#ef4444"></div></div></div>
+      <div class="score-label">Overall Risk</div>
+    </div>
+  </div>
+
+  <!-- Meta -->
+  <div style="display:flex; gap:20px; flex-wrap:wrap; font-size:12px; color:var(--text-muted); margin-bottom:20px" id="assessment-meta"></div>
+
+  <!-- Findings + Recommendations -->
+  <div style="display:grid; grid-template-columns:1fr 360px; gap:20px">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">🔎 Security Findings</div>
+        <div id="findings-count" class="badge badge-red">0</div>
+      </div>
+      <div id="findings-list">No findings yet.</div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">💡 Top Recommendations</div></div>
+      <div id="recs-list">No recommendations yet.</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Previous Assessments -->
+<div class="card" style="margin-top:20px">
+  <div class="card-header"><div class="card-title">📋 Assessment History</div></div>
+  <div id="history-list"><div style="text-align:center;padding:20px;color:var(--text-muted)">Loading…</div></div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let pollTimer = null;
+
+function scoreColor(s, inverted=false) {
+  const v = inverted ? 100 - s : s;
+  if (v >= 80) return '#22c55e'; if (v >= 60) return '#3b82f6';
+  if (v >= 40) return '#f59e0b'; return '#ef4444';
+}
+
+async function runAssessment() {
+  document.getElementById('run-btn').disabled = true;
+  document.getElementById('run-btn').textContent = '⏳ Running…';
+  document.getElementById('progress-section').classList.add('show');
+  document.getElementById('results-section').style.display = 'none';
+
+  try {
+    await fetch('/api/assessment/run', { method:'POST' });
+    pollTimer = setInterval(pollStatus, 2000);
+  } catch(e) {
+    document.getElementById('run-btn').disabled = false;
+    document.getElementById('run-btn').textContent = '▶ Run Assessment';
+    alert('Failed to start assessment: ' + e.message);
+  }
+}
+
+async function pollStatus() {
+  try {
+    const r = await fetch('/api/assessment/status');
+    const j = await r.json();
+    const d = j.data || {};
+    const pct   = d.progress || 0;
+    const stage = d.stage || '';
+    document.getElementById('progress-fill').style.width = pct + '%';
+    document.getElementById('progress-pct').textContent  = pct + '%';
+    document.getElementById('progress-stage').textContent = stage.replace(/_/g,' ');
+
+    if (!d.running && stage === 'complete') {
+      clearInterval(pollTimer);
+      await loadResult();
+      document.getElementById('run-btn').disabled = false;
+      document.getElementById('run-btn').textContent = '▶ Run Assessment';
+    } else if (d.error) {
+      clearInterval(pollTimer);
+      document.getElementById('progress-stage').textContent = '❌ Error: ' + d.error;
+      document.getElementById('run-btn').disabled = false;
+      document.getElementById('run-btn').textContent = '▶ Run Assessment';
+    }
+  } catch(e) {}
+}
+
+async function loadResult() {
+  try {
+    const r = await fetch('/api/assessment/result');
+    const j = await r.json();
+    if (j.status !== 'ok') return;
+    const d = j.data;
+    document.getElementById('results-section').style.display = 'block';
+
+    const posture  = d.security_posture_score   || 0;
+    const zt       = d.zero_trust_readiness_score || 0;
+    const behavior = d.behavioral_risk_score     || 0;
+    const risk     = d.overall_security_risk     || 0;
+
+    document.getElementById('score-posture').textContent = posture;
+    document.getElementById('score-posture').style.color = scoreColor(posture);
+    document.getElementById('bar-posture').style.width = posture + '%';
+    document.getElementById('bar-posture').style.background = scoreColor(posture);
+
+    document.getElementById('score-zt').textContent = zt;
+    document.getElementById('score-zt').style.color = scoreColor(zt);
+    document.getElementById('bar-zt').style.width = zt + '%';
+    document.getElementById('bar-zt').style.background = scoreColor(zt);
+
+    document.getElementById('score-behavior').textContent = Math.round(behavior);
+    document.getElementById('bar-behavior').style.width = behavior + '%';
+
+    document.getElementById('score-risk').textContent = risk;
+    document.getElementById('score-risk').style.color = scoreColor(risk, true);
+    document.getElementById('bar-risk').style.width = risk + '%';
+
+    document.getElementById('assessment-meta').innerHTML = `
+      <span>🕐 ${new Date(d.assessed_at).toLocaleString()}</span>
+      <span>⏱️ ${d.duration_seconds}s</span>
+      <span>🖥️ ${d.hostname}</span>
+      <span>👤 ${d.username}</span>
+      <span>🏷️ Trust Level: <strong style="color:${scoreColor(100-risk)}">${d.overall_trust_level}</strong></span>
+      <span>🔎 ${d.finding_count} findings (${d.critical_findings} critical, ${d.high_findings} high)</span>
+    `;
+
+    // Findings
+    const findings = d.findings || [];
+    document.getElementById('findings-count').textContent = findings.length;
+    document.getElementById('findings-list').innerHTML = findings.length
+      ? findings.map(f => `
+          <div class="finding-item">
+            <span class="finding-sev sev-${f.severity}">${f.severity}</span>
+            <div class="finding-content">
+              <div class="finding-title">[${f.category}] ${f.title}</div>
+              <div class="finding-rec">${f.recommendation||''}</div>
+            </div>
+          </div>`).join('')
+      : '<div style="color:#22c55e;padding:12px">✅ No findings — excellent security posture!</div>';
+
+    // Recommendations
+    const recs = d.recommendations || [];
+    document.getElementById('recs-list').innerHTML = recs.length
+      ? recs.map(r => `
+          <div style="padding:8px 0; border-bottom:1px solid var(--border)">
+            <div style="font-size:11px; font-weight:700; color:var(--text-muted)">${r.priority} — ${r.category}</div>
+            <div style="font-size:13px; color:var(--text-primary); margin-top:2px">${r.recommendation}</div>
+          </div>`).join('')
+      : '<div style="color:#22c55e;padding:12px">✅ No high-priority recommendations</div>';
+
+    loadHistory();
+  } catch(e) { console.error(e); }
+}
+
+async function loadHistory() {
+  try {
+    const r = await fetch('/api/assessment/history');
+    const j = await r.json();
+    const el = document.getElementById('history-list');
+    if (!j.data?.length) {
+      el.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-muted)">No previous assessments</div>';
+      return;
+    }
+    el.innerHTML = `<table style="width:100%;border-collapse:collapse">
+      <thead><tr style="border-bottom:1px solid var(--border)">
+        <th style="padding:8px 12px;text-align:left;font-size:11px;color:var(--text-muted)">DATE</th>
+        <th style="padding:8px;text-align:center;font-size:11px;color:var(--text-muted)">POSTURE</th>
+        <th style="padding:8px;text-align:center;font-size:11px;color:var(--text-muted)">ZT READY</th>
+        <th style="padding:8px;text-align:center;font-size:11px;color:var(--text-muted)">RISK</th>
+        <th style="padding:8px;text-align:left;font-size:11px;color:var(--text-muted)">TRUST LEVEL</th>
+      </tr></thead>
+      <tbody>${j.data.map(a => `
+        <tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:8px 12px;font-size:12px;color:var(--text-muted)">${new Date(a.saved_at).toLocaleString()}</td>
+          <td style="padding:8px;text-align:center;font-weight:700;color:${scoreColor(a.security_posture_score||0)}">${a.security_posture_score||'?'}</td>
+          <td style="padding:8px;text-align:center;font-weight:700;color:${scoreColor(a.zero_trust_readiness_score||0)}">${a.zero_trust_readiness_score||'?'}</td>
+          <td style="padding:8px;text-align:center;font-weight:700;color:${scoreColor(a.overall_security_risk||0,true)}">${a.overall_security_risk||'?'}</td>
+          <td style="padding:8px;font-size:12px;color:var(--text-muted)">${a.overall_trust_level||'—'}</td>
+        </tr>`).join('')}
+      </tbody></table>`;
+  } catch(e) {}
+}
+
+// On load: try to show latest result if available
+async function initPage() {
+  try {
+    const r = await fetch('/api/assessment/result');
+    if (r.ok) { await loadResult(); }
+  } catch(e) {}
+  loadHistory();
+}
+initPage();
+</script>
+{% endblock %}

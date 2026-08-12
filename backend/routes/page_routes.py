@@ -2,7 +2,7 @@
 backend/routes/page_routes.py
 ================================
 Blueprint: HTML page routes for the web dashboard.
-Serves all Jinja2 templates.
+Serves all Jinja2 templates — both v1.0 and v2.0 Zero Trust pages.
 """
 
 import sys
@@ -18,6 +18,8 @@ page_bp = Blueprint("pages", __name__)
 def index():
     return redirect(url_for("pages.dashboard"))
 
+
+# ── v1.0 Pages ────────────────────────────────────────────────────────────────
 
 @page_bp.route("/dashboard")
 def dashboard():
@@ -57,3 +59,60 @@ def settings():
 @page_bp.route("/about")
 def about():
     return render_template("about.html")
+
+
+# ── Zero Trust Pages (v2.0) ───────────────────────────────────────────────────
+
+@page_bp.route("/zero-trust")
+def zero_trust():
+    return render_template("zero_trust.html")
+
+
+@page_bp.route("/access-decisions")
+def access_decisions():
+    return render_template("access_decisions.html")
+
+
+@page_bp.route("/device-trust")
+def device_trust():
+    return render_template("device_trust.html")
+
+
+@page_bp.route("/user-trust")
+def user_trust():
+    return render_template("user_trust.html")
+
+
+@page_bp.route("/application-trust")
+def application_trust():
+    return render_template("application_trust.html")
+
+
+@page_bp.route("/process-trust")
+def process_trust():
+    return render_template("process_trust.html")
+
+
+@page_bp.route("/incidents")
+def incidents():
+    return render_template("incidents.html")
+
+
+@page_bp.route("/network-activity")
+def network_activity():
+    return render_template("network_activity.html")
+
+
+@page_bp.route("/file-activity")
+def file_activity():
+    return render_template("file_activity.html")
+
+
+@page_bp.route("/registry-activity")
+def registry_activity():
+    return render_template("registry_activity.html")
+
+
+@page_bp.route("/assessment")
+def assessment():
+    return render_template("assessment.html")

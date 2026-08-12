@@ -1,216 +1,191 @@
 """
-ml/train_url_classifier.py
-===========================
-Train a Random Forest URL classifier using:
-  - datasets/balanced_urls.csv
-  - datasets/Phishing_Legitimate_full.csv
+ml/train_url_classifier.py  — Dataset-Aware v2
+================================================
+Trains URL phishing detector using ACTUAL datasets:
 
-Outputs: models/url_classifier.pkl
+  1. Phishing_Legitimate_full.csv — 10,000 rows, 48 pre-extracted features
+     Label: CLASS_LABEL (1=phishing, 0=legitimate)
 
-Label conventions detected automatically:
-  balanced_urls.csv        → label column: 'label'  (0=benign, 1=phishing)
-  Phishing_Legitimate_full → label column: 'label'  (1=phishing, 0=legitimate)
+  2. balanced_urls.csv — 632,509 raw URLs
+     Label: result (0=benign, 1=phishing)
+     → Features extracted via feature_engineering.py
+
+Output: models/url_classifier.pkl
 """
 
 import sys
-import os
 from pathlib import Path
-
-# Add project root to path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 import joblib
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
-from sklearn.model_selection import train_test_split, cross_val_score
-from sklearn.metrics import (
-    classification_report, confusion_matrix,
-    roc_auc_score, accuracy_score
-)
-from sklearn.preprocessing import LabelEncoder
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import classification_report, roc_auc_score, accuracy_score
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
 
 import config
-from ml.feature_engineering import extract_url_features, URL_FEATURE_COLS
-
-
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
-
-DATASETS = [
-    config.DATASETS_DIR / "balanced_urls.csv",
-    config.DATASETS_DIR / "Phishing_Legitimate_full.csv",
-]
-
-MODEL_PATH = config.URL_MODEL_PATH
+from ml.feature_engineering import extract_url_features
 
 RANDOM_STATE = 42
-N_ESTIMATORS = 200
-MAX_DEPTH    = 20
-N_JOBS       = -1
+
+# Structural features common to both datasets
+SHARED_FEATURES = [
+    "NumDots", "NumDash", "AtSymbol", "NumUnderscore", "NumPercent",
+    "NumAmpersand", "NumHash", "NumNumericChars", "NoHttps", "IpAddress",
+    "HostnameLength", "PathLength", "QueryLength", "NumSensitiveWords",
+    "SubdomainLevel", "UrlLength", "DoubleSlashInPath",
+]
 
 
-# ---------------------------------------------------------------------------
-# Data Loading
-# ---------------------------------------------------------------------------
-
-def _detect_url_column(df: pd.DataFrame) -> str | None:
-    """Heuristically find the URL column."""
-    for col in df.columns:
-        if col.lower() in ("url", "urls", "domain", "link", "website"):
-            return col
-    return None
-
-
-def _detect_label_column(df: pd.DataFrame) -> str | None:
-    """Heuristically find the label/target column."""
-    for col in df.columns:
-        if col.lower() in ("label", "target", "class", "phishing", "result", "type", "status"):
-            return col
-    return None
-
-
-def load_and_featurize(csv_path: Path, max_rows: int = 200_000) -> pd.DataFrame | None:
-    """
-    Load a CSV, detect URL + label columns, extract features, return DataFrame.
-    Returns None if file not found or cannot be parsed.
-    """
-    if not csv_path.exists():
-        print(f"  [SKIP] Not found: {csv_path.name}")
+def load_phishing_full() -> pd.DataFrame | None:
+    """Phishing_Legitimate_full.csv — uses pre-extracted 48 features directly."""
+    path = config.DATASETS_DIR / "Phishing_Legitimate_full.csv"
+    if not path.exists():
+        print(f"  [SKIP] {path.name} not found")
         return None
 
-    print(f"  Loading {csv_path.name} ...")
-    try:
-        df = pd.read_csv(csv_path, nrows=max_rows, low_memory=False)
-    except Exception as e:
-        print(f"  [ERROR] Could not read {csv_path.name}: {e}")
+    print(f"  Loading {path.name} ...")
+    df = pd.read_csv(path, low_memory=False)
+    print(f"  Rows: {len(df):,} | Columns: {len(df.columns)}")
+
+    if "CLASS_LABEL" not in df.columns:
+        print(f"  [SKIP] CLASS_LABEL column missing")
         return None
 
-    print(f"  Columns: {list(df.columns[:10])} ... ({len(df.columns)} total)")
+    rows = []
+    for _, row in df.iterrows():
+        r = {}
+        r["NumDots"]           = row.get("NumDots", 0)
+        r["NumDash"]           = row.get("NumDash", 0)
+        r["AtSymbol"]          = row.get("AtSymbol", 0)
+        r["NumUnderscore"]     = row.get("NumUnderscore", 0)
+        r["NumPercent"]        = row.get("NumPercent", 0)
+        r["NumAmpersand"]      = row.get("NumAmpersand", 0)
+        r["NumHash"]           = row.get("NumHash", 0)
+        r["NumNumericChars"]   = row.get("NumNumericChars", 0)
+        r["NoHttps"]           = row.get("NoHttps", 0)
+        r["IpAddress"]         = row.get("IpAddress", 0)
+        r["HostnameLength"]    = row.get("HostnameLength", 0)
+        r["PathLength"]        = row.get("PathLength", 0)
+        r["QueryLength"]       = row.get("QueryLength", 0)
+        r["NumSensitiveWords"] = row.get("NumSensitiveWords", 0)
+        r["SubdomainLevel"]    = row.get("SubdomainLevel", 0)
+        r["UrlLength"]         = row.get("UrlLength", 0)
+        r["DoubleSlashInPath"] = row.get("DoubleSlashInPath", 0)
+        r["label"]             = int(pd.to_numeric(row["CLASS_LABEL"], errors="coerce") or 0)
+        rows.append(r)
+
+    result = pd.DataFrame(rows)
+    print(f"  Classes: {result['label'].value_counts().to_dict()}")
+    return result
+
+
+def load_balanced_urls(max_rows: int = 100_000) -> pd.DataFrame | None:
+    """balanced_urls.csv — extracts structural features from raw URLs."""
+    path = config.DATASETS_DIR / "balanced_urls.csv"
+    if not path.exists():
+        print(f"  [SKIP] {path.name} not found")
+        return None
+
+    print(f"  Loading {path.name} (max {max_rows:,} rows) ...")
+    df = pd.read_csv(path, nrows=max_rows, low_memory=False)
     print(f"  Rows: {len(df):,}")
 
-    url_col   = _detect_url_column(df)
-    label_col = _detect_label_column(df)
-
-    if url_col is None:
-        print(f"  [SKIP] No URL column found in {csv_path.name}")
-        return None
-    if label_col is None:
-        print(f"  [SKIP] No label column found in {csv_path.name}")
+    if "url" not in df.columns:
+        print(f"  [SKIP] No url column")
         return None
 
-    print(f"  URL column: '{url_col}' | Label column: '{label_col}'")
-
-    # Drop rows with null URL or label
-    df = df[[url_col, label_col]].dropna()
-
-    # Encode labels to binary 0/1
-    unique_labels = df[label_col].unique()
-    if set(unique_labels) == {"phishing", "legitimate"} or \
-       set(unique_labels) == {"benign", "malicious"} or \
-       set(unique_labels) == {"good", "bad"}:
-        le = LabelEncoder()
-        df["label_enc"] = le.fit_transform(df[label_col].astype(str).str.lower())
+    # label from 'result' (int) or 'label' (string)
+    if "result" in df.columns:
+        df["_lbl"] = pd.to_numeric(df["result"], errors="coerce").fillna(0).astype(int).clip(0, 1)
+    elif "label" in df.columns:
+        df["_lbl"] = df["label"].map({"benign": 0, "phishing": 1, "malicious": 1}).fillna(0).astype(int)
     else:
-        # Assume numeric
-        df["label_enc"] = pd.to_numeric(df[label_col], errors="coerce")
-        df = df.dropna(subset=["label_enc"])
-        df["label_enc"] = df["label_enc"].astype(int)
+        print(f"  [SKIP] No label column")
+        return None
 
-    print(f"  Label distribution:\n{df['label_enc'].value_counts().to_string()}")
+    df = df[["url", "_lbl"]].dropna()
 
-    # Extract URL features row by row
     print(f"  Extracting features from {len(df):,} URLs ...")
-    features_list = []
-    for i, url in enumerate(df[url_col].astype(str)):
-        features_list.append(extract_url_features(url))
-        if i % 20_000 == 0 and i > 0:
-            print(f"    {i:,} / {len(df):,} processed...")
+    rows = []
+    for i, (_, row) in enumerate(df.iterrows()):
+        feats = extract_url_features(str(row["url"]))
+        r = {k: feats.get(k, 0) for k in SHARED_FEATURES}
+        r["label"] = int(row["_lbl"])
+        rows.append(r)
+        if (i + 1) % 25_000 == 0:
+            print(f"    {i+1:,}/{len(df):,} processed ...")
 
-    feat_df = pd.DataFrame(features_list)
-    feat_df["label"] = df["label_enc"].values
-    return feat_df
+    result = pd.DataFrame(rows)
+    print(f"  Classes: {result['label'].value_counts().to_dict()}")
+    return result
 
-
-# ---------------------------------------------------------------------------
-# Training
-# ---------------------------------------------------------------------------
 
 def train() -> None:
     print("\n" + "=" * 60)
-    print("  ABTD — URL Classifier Training")
+    print("  ABTD — URL/Phishing Classifier Training")
     print("=" * 60)
 
-    all_frames = []
-    for ds in DATASETS:
-        frame = load_and_featurize(ds)
-        if frame is not None:
-            all_frames.append(frame)
+    frames = []
+    for loader in [load_phishing_full, load_balanced_urls]:
+        try:
+            df = loader()
+            if df is not None:
+                frames.append(df[SHARED_FEATURES + ["label"]])
+        except Exception as e:
+            print(f"  [ERROR] {e}")
 
-    if not all_frames:
-        print("\n[ERROR] No datasets could be loaded. Aborting.")
+    if not frames:
+        print("\n[ERROR] No datasets could be loaded.")
         sys.exit(1)
 
-    combined = pd.concat(all_frames, ignore_index=True)
-    combined = combined.dropna(subset=["label"])
-    combined["label"] = combined["label"].astype(int)
+    data = pd.concat(frames, ignore_index=True).dropna()
+    data["label"] = data["label"].astype(int)
 
-    print(f"\n  Combined dataset: {len(combined):,} samples")
-    print(f"  Class balance:\n{combined['label'].value_counts().to_string()}")
+    print(f"\n  Combined: {len(data):,} samples")
+    print(f"  Distribution: {data['label'].value_counts().to_dict()}")
 
-    X = combined[URL_FEATURE_COLS].values
-    y = combined["label"].values
+    X = data[SHARED_FEATURES].fillna(0).values
+    y = data["label"].values
 
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=RANDOM_STATE, stratify=y
+        X, y, test_size=0.20, random_state=RANDOM_STATE, stratify=y
     )
-    print(f"\n  Train: {len(X_train):,} | Test: {len(X_test):,}")
 
-    # Pipeline: impute NaN → Random Forest
     pipeline = Pipeline([
         ("imputer", SimpleImputer(strategy="median")),
         ("clf", RandomForestClassifier(
-            n_estimators=N_ESTIMATORS,
-            max_depth=MAX_DEPTH,
-            n_jobs=N_JOBS,
-            random_state=RANDOM_STATE,
-            class_weight="balanced",
-            min_samples_leaf=2,
+            n_estimators=300, max_depth=20,
+            n_jobs=-1, random_state=RANDOM_STATE,
+            class_weight="balanced", min_samples_leaf=2,
         )),
     ])
 
-    print("\n  Training Random Forest ...")
+    print("\n  Training Random Forest (300 trees) ...")
     pipeline.fit(X_train, y_train)
 
-    # Evaluation
-    y_pred     = pipeline.predict(X_test)
-    y_prob     = pipeline.predict_proba(X_test)[:, 1]
-    accuracy   = accuracy_score(y_test, y_pred)
-    auc        = roc_auc_score(y_test, y_prob)
+    y_pred = pipeline.predict(X_test)
+    y_prob = pipeline.predict_proba(X_test)[:, 1]
 
-    print("\n" + "=" * 60)
-    print("  Evaluation Results")
-    print("=" * 60)
-    print(f"  Accuracy : {accuracy:.4f}")
+    acc = accuracy_score(y_test, y_pred)
+    auc = roc_auc_score(y_test, y_prob)
+    print(f"\n  Accuracy : {acc:.4f}")
     print(f"  AUC-ROC  : {auc:.4f}")
-    print("\n" + classification_report(y_test, y_pred,
-          target_names=["Benign", "Phishing/Malicious"]))
+    print(classification_report(y_test, y_pred, target_names=["Benign", "Phishing"]))
 
-    # Feature importance (top 10)
-    rf = pipeline.named_steps["clf"]
-    importances = rf.feature_importances_
-    top_idx = np.argsort(importances)[::-1][:10]
-    print("  Top 10 Feature Importances:")
-    for idx in top_idx:
-        print(f"    {URL_FEATURE_COLS[idx]:<30} {importances[idx]:.4f}")
-
-    # Save
     config.MODELS_DIR.mkdir(parents=True, exist_ok=True)
-    joblib.dump(pipeline, MODEL_PATH)
-    print(f"\n  ✓ Model saved → {MODEL_PATH}")
+    bundle = {
+        "pipeline" : pipeline,
+        "features" : SHARED_FEATURES,
+        "accuracy" : round(acc, 4),
+        "auc"      : round(auc, 4),
+        "version"  : "2.0",
+    }
+    joblib.dump(bundle, config.URL_MODEL_PATH)
+    print(f"\n  ✓ URL model saved → {config.URL_MODEL_PATH}")
 
 
 if __name__ == "__main__":

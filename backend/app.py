@@ -47,6 +47,8 @@ def create_app() -> Flask:
     from backend.routes.settings_routes import settings_bp
     from backend.routes.awareness_routes import awareness_bp
     from backend.routes.page_routes     import page_bp
+    from backend.routes.zero_trust_routes import zero_trust_bp
+    from backend.routes.assessment_routes import assessment_bp
 
     app.register_blueprint(predict_bp)
     app.register_blueprint(scan_bp)
@@ -56,6 +58,8 @@ def create_app() -> Flask:
     app.register_blueprint(settings_bp)
     app.register_blueprint(awareness_bp)
     app.register_blueprint(page_bp)
+    app.register_blueprint(zero_trust_bp)
+    app.register_blueprint(assessment_bp)
 
     # ── Error Handlers ────────────────────────────────────────────────
     @app.errorhandler(404)

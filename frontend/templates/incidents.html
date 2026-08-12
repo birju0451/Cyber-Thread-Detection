@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% block title %}Incidents{% endblock %}
+{% block page_title %}Security Incidents{% endblock %}
+{% block page_subtitle %}Correlated multi-event threat incidents — attack chains identified automatically{% endblock %}
+
+{% block content %}
+<style>
+.incident-card {
+  background:var(--card-bg); border:1px solid var(--border); border-radius:12px;
+  padding:16px 20px; margin-bottom:12px; cursor:pointer;
+  transition:border-color 0.2s, transform 0.15s;
+}
+.incident-card:hover { border-color:var(--accent); transform:translateY(-1px); }
+.incident-card.sev-CRITICAL { border-left:4px solid #ef4444; }
+.incident-card.sev-HIGH     { border-left:4px solid #f97316; }
+.incident-card.sev-MEDIUM   { border-left:4px solid #f59e0b; }
+.incident-card.sev-LOW      { border-left:4px solid #3b82f6; }
+.inc-header { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+.inc-title { font-size:14px; font-weight:700; color:var(--text-primary); }
+.inc-meta  { font-size:11px; color:var(--text-muted); margin-top:4px; }
+.inc-badges { display:flex; gap:6px; flex-shrink:0; }
+.sev-badge { padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; }
+.sev-CRITICAL { background:rgba(239,68,68,0.15); color:#ef4444; }
+.sev-HIGH     { background:rgba(249,115,22,0.15); color:#f97316; }
+.sev-MEDIUM   { background:rgba(245,158,11,0.15); color:#f59e0b; }
+.sev-LOW      { background:rgba(59,130,246,0.15);  color:#60a5fa; }
+.status-badge { padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; }
+.status-OPEN     { background:rgba(239,68,68,0.10); color:#ef4444; }
+.status-RESOLVED { background:rgba(34,197,94,0.10); color:#22c55e; }
+.event-chain { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:10px; }
+.chain-step { font-size:11px; padding:2px 8px; border-radius:6px; background:rgba(255,255,255,0.05); color:var(--text-secondary); }
+.chain-arrow { color:var(--text-muted); font-size:14px; }
+.filter-btn { padding:6px 14px; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; border:1px solid var(--border); background:transparent; color:var(--text-muted); transition:all 0.15s; }
+.filter-btn.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+</style>
+
+<!-- Stats -->
+<div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:24px">
+  <div class="card" style="text-align:center; padding:16px">
+    <div style="font-size:28px; font-weight:800; color:#ef4444" id="i-open">0</div>
+    <div style="font-size:11px; color:var(--text-muted)">OPEN</div>
+  </div>
+  <div class="card" style="text-align:center; padding:16px">
+    <div style="font-size:28px; font-weight:800; color:#22c55e" id="i-resolved">0</div>
+    <div style="font-size:11px; color:var(--text-muted)">RESOLVED</div>
+  </div>
+  <div class="card" style="text-align:center; padding:16px">
+    <div style="font-size:28px; font-weight:800; color:#f97316" id="i-critical">0</div>
+    <div style="font-size:11px; color:var(--text-muted)">CRITICAL</div>
+  </div>
+  <div class="card" style="text-align:center; padding:16px">
+    <div style="font-size:28px; font-weight:800; color:var(--text-primary)" id="i-total">0</div>
+    <div style="font-size:11px; color:var(--text-muted)">TOTAL</div>
+  </div>
+</div>
+
+<!-- Filters -->
+<div style="display:flex; gap:8px; margin-bottom:20px; flex-wrap:wrap; align-items:center">
+  <span style="font-size:12px; color:var(--text-muted)">Status:</span>
+  <button class="filter-btn active" id="btn-all" onclick="filterBy('all')">All</button>
+  <button class="filter-btn" id="btn-open" onclick="filterBy('OPEN')">Open</button>
+  <button class="filter-btn" id="btn-resolved" onclick="filterBy('RESOLVED')">Resolved</button>
+  <span style="font-size:12px; color:var(--text-muted); margin-left:8px">Severity:</span>
+  <button class="filter-btn" onclick="filterBySev('CRITICAL')" style="border-color:#ef4444;color:#ef4444">Critical</button>
+  <button class="filter-btn" onclick="filterBySev('HIGH')" style="border-color:#f97316;color:#f97316">High</button>
+  <button class="filter-btn" onclick="filterBySev('MEDIUM')" style="border-color:#f59e0b;color:#f59e0b">Medium</button>
+  <button class="btn" onclick="loadIncidents()" style="margin-left:auto">Refresh</button>
+</div>
+
+<!-- Incident List -->
+<div id="incidents-list">
+  <div style="text-align:center; padding:40px; color:var(--text-muted)">Loading incidents…</div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let allIncidents = [];
+let activeStatus = 'all';
+let activeSev    = null;
+
+async function loadIncidents() {
+  try {
+    const r = await fetch('/api/zero-trust/incidents?limit=100');
+    const j = await r.json();
+    if (j.status !== 'ok') return;
+    allIncidents = j.data.incidents || [];
+    const stats  = j.data.stats || {};
+    document.getElementById('i-open').textContent     = stats.open || 0;
+    document.getElementById('i-resolved').textContent = stats.resolved || 0;
+    document.getElementById('i-critical').textContent = stats.by_severity?.CRITICAL || 0;
+    document.getElementById('i-total').textContent    = stats.total || 0;
+    renderIncidents();
+  } catch(e) { console.error(e); }
+}
+
+function filterBy(status) {
+  activeStatus = status;
+  document.querySelectorAll('[id^="btn-"]').forEach(b => b.classList.remove('active'));
+  document.getElementById(`btn-${status.toLowerCase()}`).classList.add('active');
+  renderIncidents();
+}
+
+function filterBySev(sev) {
+  activeSev = activeSev === sev ? null : sev;
+  renderIncidents();
+}
+
+function renderIncidents() {
+  let data = allIncidents;
+  if (activeStatus !== 'all') data = data.filter(i => i.status === activeStatus);
+  if (activeSev) data = data.filter(i => i.severity === activeSev);
+
+  const el = document.getElementById('incidents-list');
+  if (!data.length) {
+    el.innerHTML = `<div style="text-align:center;padding:60px;color:var(--text-muted)">
+      ${activeStatus === 'OPEN' ? '✅ No open incidents' : 'No incidents found'}
+    </div>`;
+    return;
+  }
+
+  el.innerHTML = data.map(inc => {
+    const evTypes = inc.event_types || [];
+    const chain   = evTypes.map(t => `<span class="chain-step">${t}</span><span class="chain-arrow">›</span>`).join('');
+    const ts      = inc.created_at ? new Date(inc.created_at).toLocaleString() : '';
+    return `
+      <div class="incident-card sev-${inc.severity}" onclick="resolvePrompt('${inc.incident_id}', this)">
+        <div class="inc-header">
+          <div>
+            <div class="inc-title">${inc.title}</div>
+            <div class="inc-meta">ID: ${inc.incident_id} &nbsp;|&nbsp; Entity: ${inc.entity_id} &nbsp;|&nbsp; ${inc.event_count} events &nbsp;|&nbsp; ${ts}</div>
+          </div>
+          <div class="inc-badges">
+            <span class="sev-badge sev-${inc.severity}">${inc.severity}</span>
+            <span class="status-badge status-${inc.status}">${inc.status}</span>
+          </div>
+        </div>
+        ${evTypes.length > 0 ? `<div class="event-chain">${chain}</div>` : ''}
+        ${inc.mitre_tactics?.length ? `<div style="margin-top:6px;font-size:11px;color:var(--text-muted)">MITRE: ${inc.mitre_tactics.join(', ')}</div>` : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+async function resolvePrompt(id, card) {
+  if (!confirm(`Mark incident ${id} as resolved?`)) return;
+  try {
+    await fetch(`/api/zero-trust/incidents/${id}/resolve`, { method:'POST' });
+    await loadIncidents();
+  } catch(e) {}
+}
+
+loadIncidents();
+setInterval(loadIncidents, 30000);
+</script>
+{% endblock %}

@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}User Trust{% endblock %}
+{% block page_title %}User & Identity Trust{% endblock %}
+{% block page_subtitle %}Windows identity verification — privilege level, SID, session analysis, trust history{% endblock %}
+{% block content %}
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:24px">
+  <div class="card">
+    <div class="card-header"><div class="card-title">🪪 Current Identity</div></div>
+    <div id="identity-ctx"><div style="text-align:center;padding:30px;color:var(--text-muted)">Loading…</div></div>
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-title">📊 Identity Risk Score</div></div>
+    <div id="identity-risk"><div style="text-align:center;padding:30px;color:var(--text-muted)">Loading…</div></div>
+  </div>
+</div>
+<div class="card">
+  <div class="card-header"><div class="card-title">📈 Trust History (All Entities)</div></div>
+  <div id="trust-scores"><div style="text-align:center;padding:30px;color:var(--text-muted)">Loading…</div></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function tc(s){ return s>=85?'#22c55e':s>=70?'#3b82f6':s>=50?'#f59e0b':'#ef4444'; }
+function row(label, value) {
+  return `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px">
+    <span style="color:var(--text-muted)">${label}</span><span style="font-weight:600">${value}</span></div>`;
+}
+async function load() {
+  const [iR, tsR] = await Promise.all([fetch('/api/zero-trust/identity'), fetch('/api/zero-trust/trust-scores')]);
+  const id = await iR.json(); const ts = await tsR.json();
+  if (id.status==='ok') {
+    const ctx  = id.data.context || {};
+    const risk = id.data.risk    || {};
+    document.getElementById('identity-ctx').innerHTML =
+      row('Username', ctx.username||'?') + row('Domain', ctx.domain||'?') +
+      row('Privilege Level', `<strong style="color:${risk.identity_risk>30?'#f59e0b':'#22c55e'}">${ctx.privilege_level||'?'}</strong>`) +
+      row('Elevated', ctx.is_elevated ? '⚠️ Yes' : '✅ No') +
+      row('SID', `<span style="font-size:11px;color:var(--text-muted)">${(ctx.sid||'?').slice(0,30)}</span>`) +
+      row('Session Start', new Date(ctx.session_start).toLocaleString());
+    const rs = risk.identity_risk || 0;
+    document.getElementById('identity-risk').innerHTML = `
+      <div style="text-align:center;padding:10px">
+        <div style="font-size:56px;font-weight:900;color:${tc(100-rs)}">${100-rs}</div>
+        <div style="font-size:12px;color:var(--text-muted)">Trust Score (risk: ${rs})</div>
+      </div>
+      ${(risk.reasons||[]).map(r=>`<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;color:var(--text-muted)">⚠️ ${r}</div>`).join('')}`;
+  }
+  if (ts.status==='ok') {
+    const all = ts.data || {};
+    let html = '';
+    for (const [type, entities] of Object.entries(all)) {
+      html += `<div style="font-size:12px;font-weight:700;color:var(--text-muted);margin:12px 0 6px;text-transform:uppercase">${type}</div>`;
+      html += entities.map(e => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg-secondary);border-radius:8px;margin-bottom:6px">
+          <div>
+            <div style="font-size:13px;font-weight:600">${e.entity_id.slice(0,40)}</div>
+            <div style="font-size:11px;color:var(--text-muted)">${e.incident_count} incidents · ${e.event_count||0} events</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:20px;font-weight:800;color:${tc(e.trust_score)}">${e.trust_score}</div>
+            <div style="font-size:10px;color:var(--text-muted)">${e.trust_level}</div>
+          </div>
+        </div>`).join('');
+    }
+    document.getElementById('trust-scores').innerHTML = html || '<div style="text-align:center;padding:20px;color:var(--text-muted)">No entities tracked yet</div>';
+  }
+}
+load(); setInterval(load, 30000);
+</script>
+{% endblock %}
