@@ -1,37 +1,62 @@
 # ABTD — Adaptive Behavioral Threat Detection
-### AI-Powered Windows Endpoint Protection Platform
+### AI-Powered Zero Trust Endpoint Protection Platform v2.0
 
-> Final Year Engineering Project | Python 3.11 | Flask | MongoDB Atlas | scikit-learn | Gemini AI
+> Final Year Engineering Project | Python 3.11 | Flask | MongoDB Atlas | scikit-learn | Zero Trust Architecture
 
 ---
 
-## 🏗️ System Architecture
+## 🛡️ What is ABTD?
+
+ABTD is a comprehensive **Windows endpoint security platform** built on two integrated layers:
+
+| Layer | Description |
+|-------|-------------|
+| **v1.0 — Detection Engine** | 5-layer ML + heuristic threat scoring for URLs, files, and processes |
+| **v2.0 — Zero Trust Architecture** | Never-trust-always-verify continuous verification pipeline with behavioral correlation |
+
+Together they form a **detect → evaluate → decide → respond** loop that runs on every security event.
+
+---
+
+## 🏗️ System Architecture v2.0
 
 ```
 User Browser / Windows System
         │
-        ├─ Chrome Extension (Manifest V3)
-        │      ├─ background.js  → scans every URL visited
-        │      ├─ content.js     → injects threat banners + link tooltips
-        │      └─ popup.html     → live scan dashboard in extension popup
+        ├─ Chrome Extension (Manifest V3) — Zero Trust Aware
+        │      ├─ background.js   → scans every URL + calls ZT evaluate_access()
+        │      ├─ content.js      → injects threat banners + link tooltips
+        │      └─ popup.html      → trust scores, ZT decision, incidents panel
         │
         └─ Flask API (port 5000)
                │
-               ├─ /predict          → Extension scan endpoint
-               ├─ /api/scan         → Manual scan (URL / File)
-               ├─ /api/stats        → Dashboard KPIs
-               ├─ /api/history      → MongoDB scan log
-               ├─ /api/*-alerts     → Agent threat alerts
-               └─ /dashboard        → Web dashboard (HTML)
+               ├─ /api/zero-trust/*     ← Zero Trust pipeline APIs (20+ endpoints)
+               ├─ /api/assessment/*     ← Security Assessment APIs
+               ├─ /predict             ← Extension scan
+               ├─ /api/scan            ← Manual scan
+               └─ /dashboard           ← Web dashboard (19 pages total)
                       │
-                      └─ ABTD Engine (5-layer detection)
-                             │
-                             ├─ Layer 1: Feature Extraction
-                             ├─ Layer 2: Random Forest Classifier
-                             ├─ Layer 3: Isolation Forest Anomaly
-                             ├─ Layer 4: Heuristic Rule Engine (10 rules)
-                             └─ Layer 5: WHOIS + DNSBL Reputation
+                      ├─ ABTD Detection Engine (5 layers) [v1.0]
+                      │      ├─ Layer 1: Feature Extraction
+                      │      ├─ Layer 2: Random Forest Classifier (40%)
+                      │      ├─ Layer 3: Isolation Forest Anomaly (20%)
+                      │      ├─ Layer 4: Heuristic Rule Engine (25%)
+                      │      └─ Layer 5: WHOIS + DNSBL Reputation (15%)
+                      │
+                      └─ Zero Trust Pipeline (10 steps) [v2.0]
+                             ├─ Step 1:  Identity Manager       (Windows SID, privilege)
+                             ├─ Step 2:  Device Assessor        (Firewall, Defender, patches)
+                             ├─ Step 3:  Application Assessor   (Authenticode, publisher)
+                             ├─ Step 4:  Process Assessor       (masquerading, parent-child)
+                             ├─ Step 5:  Resource Registry      (sensitivity-based ACL)
+                             ├─ Step 6:  Risk Calculator        (8-signal weighted score)
+                             ├─ Step 7:  Behavior Engine        (temporal chain analysis)
+                             ├─ Step 8:  Trust Manager          (per-entity trust state)
+                             ├─ Step 9:  Policy Engine          (10 JSON-configured policies)
+                             └─ Step 10: Response Engine        (ALLOW/MONITOR/RESTRICT/BLOCK)
 ```
+
+---
 
 ## 📦 Datasets Used
 
@@ -52,6 +77,8 @@ User Browser / Windows System
 | `memory_anomaly.pkl` | Isolation Forest | Volatility memory dump features | Normal / Anomaly |
 | `behavior_anomaly.pkl` | Isolation Forest | Per-IP network packet stats | Normal / Anomaly |
 
+---
+
 ## 🚀 Quick Start
 
 ### 1. Install Dependencies
@@ -60,111 +87,146 @@ cd d:\Cyber-Thread-Detection
 python -m pip install -r requirements.txt
 ```
 
-### 2. Generate Extension Icons
+### 2. Configure Environment
+```powershell
+# Edit .env with your keys
+MONGO_URI=mongodb+srv://...
+GEMINI_API_KEY=...
+SIMULATION_MODE=true     # Safe mode: destructive ZT actions are dry-run only
+```
+
+### 3. Generate Extension Icons
 ```powershell
 python generate_icons.py
 ```
 
-### 3. Train ML Models
+### 4. Train ML Models
 ```powershell
-# Train all 4 models (takes 10–30 min)
+# Train all 4 models (10–30 min first time)
 python train_all.py
 
-# Or train individually (faster for testing)
+# Or train individually
 python train_all.py --url-only
-python train_all.py --skip-url      # Skip URL model (slowest)
+python train_all.py --skip-url
 ```
 
-### 4. Start the System
+### 5. Start the System
 ```powershell
-# Full system (Flask + Windows Agent)
+# Full system (Flask + Windows Agent v2.0 — 6 monitoring threads)
 python run.py
 
 # Flask only (no background monitoring)
 python run.py --no-agent
 
-# View on: http://127.0.0.1:5000/dashboard
+# Open: http://127.0.0.1:5000/dashboard
+# Zero Trust: http://127.0.0.1:5000/zero-trust
 ```
 
-### 5. Load Chrome Extension
+### 6. Load Chrome Extension
 1. Open Chrome → `chrome://extensions`
 2. Enable **Developer Mode** (top-right toggle)
 3. Click **Load unpacked**
 4. Select `d:\Cyber-Thread-Detection\extension\`
 
-**To pack for distribution:**
-1. Chrome → `chrome://extensions`
-2. Click **Pack Extension**
-3. Browse → select the `extension/` folder
-4. Chrome creates `extension.crx` (installer) + `extension.pem` (key)
-
-### 6. Run Tests
+### 7. Run Tests
 ```powershell
+# All tests (includes Zero Trust, Correlation, Assessment)
 python -m pytest tests/ -v
+
+# Specific suites
+python -m pytest tests/test_zero_trust.py -v   # ZT pipeline (30+ tests)
+python -m pytest tests/test_correlation.py -v  # Behavior & Correlation
+python -m pytest tests/test_assessment.py -v   # Security Assessment
 ```
+
+---
 
 ## 📁 Project Structure
 
 ```
 Cyber-Thread-Detection/
-├── config.py               ← Central config (paths, thresholds, env)
-├── run.py                  ← Main entry point
-├── train_all.py            ← ML training orchestrator
-├── setup.py                ← Environment validator
-├── generate_icons.py       ← Chrome extension icons
-├── requirements.txt
+├── config.py                  ← Central config (ZT thresholds, collections, weights)
+├── run.py                     ← Main entry point
+├── train_all.py               ← ML training orchestrator
 │
-├── datasets/               ← Training CSV files
-├── models/                 ← Trained .pkl model files
-├── logs/                   ← Rotating log files
-├── awareness/              ← Cybersecurity education JSON
+├── zero_trust/                ← Zero Trust Architecture (v2.0)
+│   ├── identity/              ← Windows identity & privilege tracking
+│   ├── device_trust/          ← Firewall, Defender, patches, Secure Boot
+│   ├── application_trust/     ← Authenticode signature, publisher, path risk
+│   ├── process_trust/         ← Masquerading, parent-child chains, cmdline
+│   ├── resource_protection/   ← 30+ sensitive resources, sensitivity-based ACL
+│   ├── risk_engine/           ← 8-signal weighted risk aggregation
+│   ├── trust_manager/         ← Per-entity trust state with decay/recovery
+│   ├── policy_engine/         ← 10 configurable policies (policies.json)
+│   └── access_control/        ← 10-step ZT pipeline orchestrator
 │
-├── ml/                     ← Training scripts
-│   ├── feature_engineering.py
-│   ├── train_url_classifier.py
-│   ├── train_malware_classifier.py
-│   ├── train_memory_anomaly.py
-│   └── train_behavior_anomaly.py
+├── abtd/                      ← Behavioral Intelligence (v2.0)
+│   ├── behavior_engine/       ← Temporal chain analysis (8 attack patterns)
+│   ├── correlation_engine/    ← Event grouping into incidents
+│   └── response_engine/       ← ALLOW/MONITOR/RESTRICT/BLOCK/QUARANTINE
 │
-├── engine/                 ← ABTD detection engine (5 layers)
-│   ├── predictor.py        ← Main orchestrator (entry point)
-│   ├── url_analyzer.py     ← URL ML integration
-│   ├── file_analyzer.py    ← File entropy + PE + ML
-│   ├── memory_analyzer.py  ← Process memory anomaly
-│   ├── rule_engine.py      ← 10 heuristic security rules
-│   ├── reputation.py       ← WHOIS + DNSBL checks
-│   └── threat_scorer.py    ← Score fusion & classification
+├── scanner/                   ← Security Assessment Engine (v2.0)
+│   └── security_assessment.py ← 12-category assessment, 4 composite scores
 │
-├── backend/                ← Flask web server
-│   ├── app.py              ← App factory (registers blueprints)
-│   ├── database.py         ← MongoDB Atlas DAL
-│   ├── logger.py           ← Structured colorized logging
-│   ├── utils.py            ← Gemini AI integration
-│   └── routes/             ← 8 Blueprint route modules
+├── engine/                    ← ABTD detection engine (v1.0 — 5 layers)
+│   ├── predictor.py
+│   ├── url_analyzer.py
+│   ├── file_analyzer.py
+│   ├── memory_analyzer.py
+│   ├── rule_engine.py
+│   ├── reputation.py
+│   └── threat_scorer.py
 │
-├── frontend/               ← Web dashboard
-│   ├── templates/          ← Jinja2 HTML templates (8 pages)
-│   └── static/             ← CSS + JS (dark theme design system)
+├── backend/                   ← Flask web server
+│   ├── app.py                 ← App factory (10 blueprints)
+│   ├── database.py            ← MongoDB Atlas DAL (8 new ZT methods)
+│   ├── logger.py
+│   ├── utils.py               ← Gemini AI integration
+│   └── routes/                ← 10 Blueprint route modules
+│       ├── zero_trust_routes.py  ← 20+ ZT API endpoints
+│       └── assessment_routes.py  ← Async assessment runner
 │
-├── agent/                  ← Windows background monitoring agent
-│   ├── agent.py            ← Orchestrator (main daemon)
-│   ├── file_monitor.py     ← watchdog: Downloads/Desktop/Temp
-│   ├── process_monitor.py  ← psutil: all running processes
-│   ├── registry_monitor.py ← winreg: startup persistence keys
-│   ├── network_monitor.py  ← psutil: TCP connections
-│   └── notifier.py         ← Windows desktop notifications
+├── frontend/                  ← Web dashboard
+│   ├── templates/             ← 19 Jinja2 HTML pages
+│   │   ├── zero_trust.html        ← ZT Overview (8-step pipeline viz)
+│   │   ├── access_decisions.html  ← Filterable decision log
+│   │   ├── device_trust.html      ← Device security checks
+│   │   ├── user_trust.html        ← Identity & privilege analysis
+│   │   ├── application_trust.html ← App signature verification
+│   │   ├── process_trust.html     ← Running process risk table
+│   │   ├── incidents.html         ← Correlated security incidents
+│   │   ├── network_activity.html  ← Network behavioral events
+│   │   ├── file_activity.html     ← File monitoring + quarantine
+│   │   ├── registry_activity.html ← Startup & persistence monitoring
+│   │   └── assessment.html        ← Full security assessment runner
+│   └── static/                ← CSS + JS (dark theme design system)
 │
-├── extension/              ← Chrome Extension (Manifest V3)
+├── agent/                     ← Windows background agent (v2.0 — 6 threads)
+│   ├── agent.py               ← Orchestrator (USB + Startup added)
+│   ├── file_monitor.py        ← watchdog: Downloads/Desktop/Temp
+│   ├── process_monitor.py     ← psutil + ZT pipeline per detection
+│   ├── registry_monitor.py    ← winreg: startup persistence keys
+│   ├── network_monitor.py     ← psutil: TCP connections
+│   ├── usb_monitor.py         ← USB drive insertion detection   [NEW]
+│   ├── startup_monitor.py     ← Startup entry change detection  [NEW]
+│   └── notifier.py            ← Windows desktop notifications
+│
+├── extension/                 ← Chrome Extension (Manifest V3)
 │   ├── manifest.json
-│   ├── background.js       ← Service worker (URL scanning)
-│   ├── content.js          ← Threat banners + link tooltips
-│   └── popup/              ← Extension popup UI
+│   ├── background.js          ← Service worker (URL scanning + ZT)
+│   ├── content.js             ← Threat banners + link tooltips
+│   └── popup/                 ← Popup with Zero Trust panel     [UPGRADED]
 │
-└── tests/                  ← Pytest test suite (77 tests)
-    ├── test_engine.py      ← 25 engine + rule + feature tests
-    ├── test_routes.py      ← 35 Flask API integration tests
-    └── test_agent.py       ← 17 agent + file analyzer tests
+└── tests/                     ← Pytest test suite (100+ tests)
+    ├── test_engine.py          ← 25 engine + rule + feature tests
+    ├── test_routes.py          ← 35 Flask API integration tests
+    ├── test_agent.py           ← 17 agent + file analyzer tests
+    ├── test_zero_trust.py      ← 30+ ZT pipeline tests          [NEW]
+    ├── test_correlation.py     ← Behavior + Correlation tests    [NEW]
+    └── test_assessment.py      ← Security Assessment tests       [NEW]
 ```
+
+---
 
 ## 🔑 Environment Variables (.env)
 
@@ -176,8 +238,13 @@ Cyber-Thread-Detection/
 | `FLASK_PORT` | `5000` | Flask server port |
 | `AGENT_ENABLED` | `true` | Run background monitoring agent |
 | `AGENT_SCAN_INTERVAL` | `30` | Process scan interval (seconds) |
+| `SIMULATION_MODE` | `true` | **ZT Safety**: Destructive responses are dry-run only |
+| `ZT_BLOCK_THRESHOLD` | `75` | Risk score that triggers BLOCK decision |
+| `ZT_RESTRICT_THRESHOLD` | `60` | Risk score that triggers RESTRICT |
 
-## 🎯 Threat Classification
+---
+
+## 🎯 Threat Classification (v1.0 Detection Engine)
 
 | Level | Score | Color | Action |
 |---|---|---|---|
@@ -186,49 +253,75 @@ Cyber-Thread-Detection/
 | 🚫 **MALICIOUS** | 50–74 | Red | Block + Notify |
 | 🔴 **CRITICAL** | 75–100 | Purple | Block + Alert + Log |
 
-## 📊 Score Fusion Weights
+## 🛡️ Zero Trust Decisions (v2.0 Policy Engine)
 
-| Layer | Weight | Source |
+| Decision | Trust Score | Action |
 |---|---|---|
-| Random Forest (ML) | **40%** | Trained classifier |
-| Isolation Forest (Anomaly) | **20%** | Unsupervised model |
-| Rule Engine (Heuristics) | **25%** | 10 security rules |
-| Reputation (WHOIS+DNSBL) | **15%** | External lookup |
+| ✅ **ALLOW** | ≥ 75 | Full access granted |
+| 👁️ **MONITOR** | 55–74 | Access with enhanced logging |
+| ⚠️ **RESTRICT** | 40–54 | Limited access, re-authentication required |
+| 🔐 **CHALLENGE** | 30–39 | Step-up MFA challenge |
+| 🚫 **BLOCK** | 15–29 | Access denied |
+| 🔒 **QUARANTINE** | < 15 | Isolate entity, incident created |
 
-## 🌐 API Endpoints
+---
 
+## 🌐 API Endpoints — Complete Reference
+
+### v1.0 Detection Endpoints
 | Endpoint | Method | Description |
 |---|---|---|
 | `/predict` | POST | Chrome Extension URL scan |
-| `/api/scan` | POST | Dashboard manual scan |
+| `/api/scan` | POST | Dashboard manual scan (URL/File) |
 | `/api/stats` | GET | KPI dashboard stats |
 | `/api/history` | GET | Paginated scan log |
 | `/api/status` | GET | System health check |
 | `/api/system-info` | GET | CPU/RAM/disk telemetry |
-| `/api/file-alerts` | GET | File monitoring alerts |
-| `/api/process-alerts` | GET | Process monitoring alerts |
-| `/api/network-alerts` | GET | Network monitoring alerts |
-| `/api/registry-alerts` | GET | Registry persistence alerts |
 | `/api/quarantine` | GET | Quarantined file list |
 | `/api/settings` | GET/POST | System settings |
 | `/api/awareness` | GET | Awareness topic list |
-| `/api/awareness/<slug>` | GET | Topic content + quiz |
 
-## 👨‍💻 Technology Stack
-
-- **Python 3.11** — Core runtime
-- **Flask 3.x** — Web framework
-- **scikit-learn** — Random Forest + Isolation Forest
-- **pandas / numpy** — Data processing
-- **MongoDB Atlas** — Cloud threat log database
-- **Google Gemini AI** — Natural language threat explanations
-- **watchdog** — File system monitoring
-- **psutil** — Process + network monitoring
-- **winreg** — Windows Registry monitoring
-- **Chart.js** — Dashboard visualizations
-- **Chrome Manifest V3** — Browser extension
+### v2.0 Zero Trust Endpoints
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/zero-trust/overview` | GET | Dashboard trust scores + recent decisions |
+| `/api/zero-trust/trust-scores` | GET | All entity trust states |
+| `/api/zero-trust/access-decisions` | GET | Paginated decision log |
+| `/api/zero-trust/evaluate` | POST | Manual ZT evaluation |
+| `/api/zero-trust/incidents` | GET | Correlated security incidents |
+| `/api/zero-trust/incidents/<id>/resolve` | POST | Resolve an incident |
+| `/api/zero-trust/policies` | GET/POST | Policy management |
+| `/api/zero-trust/device-trust` | GET | Device security posture |
+| `/api/zero-trust/identity` | GET | Current user identity context |
+| `/api/zero-trust/app-trust` | GET | Application trust profiles |
+| `/api/zero-trust/process-trust` | GET | Running process risk assessment |
+| `/api/zero-trust/behavior` | GET | Behavioral profiles |
+| `/api/zero-trust/resources` | GET | Protected resource registry |
+| `/api/assessment/run` | POST | Trigger full security assessment |
+| `/api/assessment/status` | GET | Assessment progress polling |
+| `/api/assessment/result` | GET | Latest assessment result |
+| `/api/assessment/history` | GET | Assessment run history |
 
 ---
 
-*ABTD v1.0 — Adaptive Behavioral Threat Detection System*  
+## 👨‍💻 Technology Stack
+
+| Category | Technology |
+|---|---|
+| **Runtime** | Python 3.11 |
+| **Web Framework** | Flask 3.x |
+| **ML** | scikit-learn (Random Forest + Isolation Forest) |
+| **Data** | pandas, numpy |
+| **Database** | MongoDB Atlas (PyMongo) |
+| **AI** | Google Gemini API (threat explanations) |
+| **File Monitor** | watchdog |
+| **System** | psutil, winreg, win32security |
+| **Charts** | Chart.js |
+| **Browser** | Chrome Extension Manifest V3 |
+| **Testing** | pytest |
+
+---
+
+*ABTD v2.0 — Adaptive Behavioral Threat Detection System*
+*Zero Trust Architecture · AI-Powered · Windows Endpoint Protection*
 *Final Year Engineering Project — Python 3.11 | Flask | MongoDB Atlas*
