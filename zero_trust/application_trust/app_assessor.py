@@ -336,5 +336,7 @@ class ApplicationAssessor:
             return ""
 
 
-# Singleton
+# Singleton & Alias
 app_assessor = ApplicationAssessor()
+AppAssessor = ApplicationAssessor
+

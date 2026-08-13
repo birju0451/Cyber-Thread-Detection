@@ -108,12 +108,14 @@ class ProcessAssessor:
         exe         : str  = "",
         cmdline     : str  = "",
         parent_name : str  = "",
+        exe_path    : str  = "",
     ) -> dict:
         """
         Assess a single process.
         Returns full risk assessment dict.
         """
-        result = self._run_assessment(pid, name, exe, cmdline, parent_name)
+        exe_to_use = exe or exe_path
+        result = self._run_assessment(pid, name, exe_to_use, cmdline, parent_name)
         with self._lock:
             self._scores[pid] = result
         return result

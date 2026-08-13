@@ -84,32 +84,14 @@ class RiskCalculator:
 
     # ── Public API ────────────────────────────────────────────────────────────
 
-    def calculate(self, signals: dict) -> dict:
+    def calculate(self, signals: Optional[dict] = None, **kwargs) -> dict:
         """
-        Calculate overall risk and trust from input signals.
-
-        Args:
-            signals: Dict with any subset of:
-                identity_risk   : 0–100
-                device_risk     : 0–100  (= 100 - device_trust_score)
-                app_risk        : 0–100  (= 100 - app_trust_score)
-                process_risk    : 0–100  (process_risk_score)
-                url_risk        : 0–100  (threat_score from URL analysis)
-                file_risk       : 0–100  (threat_score from file analysis)
-                behavior_risk   : 0–100  (behavior anomaly score)
-                network_risk    : 0–100  (network anomaly score)
-                historical_risk : 0–100  (past incident score)
-
-        Returns:
-            {
-                "overall_risk"   : 0–100,
-                "trust_score"    : 0–100,
-                "trust_level"    : "TRUSTED" | "LOW_RISK" | ...
-                "signal_scores"  : {per-signal risk contributions},
-                "weights"        : {applied weights},
-                "calculated_at"  : ISO timestamp,
-            }
+        Calculate overall risk and trust from input signals or keyword args.
         """
+        if signals is None or not isinstance(signals, dict):
+            signals = kwargs
+        elif kwargs:
+            signals = {**signals, **kwargs}
         signal_scores = {}
         weighted_sum  = 0.0
         total_weight  = 0.0

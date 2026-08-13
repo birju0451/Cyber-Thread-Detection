@@ -117,26 +117,31 @@ class TrustManager:
         self,
         entity_type : str,
         entity_id   : str,
-        delta       : float,
-        reason      : str,
+        delta       : float = 0.0,
+        reason      : str = "Trust update",
         source      : str = "system",
+        risk_score  : Optional[float] = None,
+        trust_score : Optional[float] = None,
     ) -> dict:
         """
         Adjust trust score for an entity.
-
-        Args:
-            entity_type : "user" | "device" | "process" | "app" | "connection"
-            entity_id   : Identifier string (username, pid, exe path, IP:port)
-            delta       : Change amount (+positive = more trust, -negative = less)
-            reason      : Human-readable reason for change
-            source      : Module that triggered the change
-
-        Returns the new trust state.
+        Supports delta adjustments or explicit risk_score / trust_score.
         """
         with self._lock:
             entry = self._get_or_create(entity_type, entity_id)
             old_trust = entry.current_trust
-            entry.current_trust = max(0.0, min(100.0, entry.current_trust + delta))
+
+            if risk_score is not None:
+                new_val = max(0.0, min(100.0, 100.0 - float(risk_score)))
+                delta = new_val - old_trust
+                entry.current_trust = new_val
+            elif trust_score is not None:
+                new_val = max(0.0, min(100.0, float(trust_score)))
+                delta = new_val - old_trust
+                entry.current_trust = new_val
+            else:
+                entry.current_trust = max(0.0, min(100.0, entry.current_trust + delta))
+
             entry.last_updated  = time.time()
 
             if delta < 0:

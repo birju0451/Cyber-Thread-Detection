@@ -199,13 +199,15 @@ class PolicyEngine:
                 return False
 
         # Device trust threshold
-        device_trust = float(context.get("device_trust", 100))
+        raw_dt = context.get("device_trust", 100)
+        device_trust = float(raw_dt.get("device_trust_score", 100)) if isinstance(raw_dt, dict) else float(raw_dt or 100)
         if "device_trust_max" in conditions:
             if device_trust > conditions["device_trust_max"]:
                 return False
 
         # App trust threshold
-        app_trust = float(context.get("app_trust", 100))
+        raw_at = context.get("app_trust", 100)
+        app_trust = float(raw_at.get("app_trust_score", 100)) if isinstance(raw_at, dict) else float(raw_at or 100)
         if "app_trust_max" in conditions:
             if app_trust > conditions["app_trust_max"]:
                 return False

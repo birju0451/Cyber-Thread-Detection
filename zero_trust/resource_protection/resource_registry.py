@@ -107,22 +107,14 @@ class ResourceRegistry:
     def check_access(
         self,
         resource_path  : str,
-        requester_trust: int,
+        requester_trust: int = 50,
+        trust_score    : int = 50,
     ) -> dict:
         """
         Determine whether an entity with the given trust score
         may access the specified resource.
-
-        Returns:
-            {
-                "allowed"      : bool,
-                "sensitivity"  : str,
-                "required_trust": int,
-                "actual_trust" : int,
-                "decision"     : "ALLOW" | "RESTRICT" | "BLOCK",
-                "reason"       : str,
-            }
         """
+        actual_trust = requester_trust if requester_trust != 50 else trust_score
         sensitivity    = self.get_sensitivity(resource_path)
         required_trust = MIN_TRUST_FOR_ACCESS[sensitivity]
 
