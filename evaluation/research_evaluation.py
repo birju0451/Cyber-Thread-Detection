@@ -64,9 +64,9 @@ def calc_metrics(y_true, y_pred):
 
 def print_metrics(name, metrics, latency_ms=0.0):
     """Pretty-print metrics for one approach."""
-    print(f"\n  {'─' * 56}")
+    print(f"\n  {'-' * 56}")
     print(f"  {name}")
-    print(f"  {'─' * 56}")
+    print(f"  {'-' * 56}")
     print(f"  Accuracy  : {metrics['accuracy']:.4f}")
     print(f"  Precision : {metrics['precision']:.4f}")
     print(f"  Recall    : {metrics['recall']:.4f}")
@@ -80,7 +80,7 @@ def print_metrics(name, metrics, latency_ms=0.0):
 
 # ── Load URL Dataset ───────────────────────────────────────────
 
-def load_url_test_data(max_rows=5000):
+def load_url_test_data(max_rows=10000):
     """Load URL dataset for evaluation."""
     import config
     path = config.DATASETS_DIR / "Phishing_Legitimate_full.csv"
@@ -90,8 +90,8 @@ def load_url_test_data(max_rows=5000):
         print("[ERROR] No URL dataset found for evaluation")
         return None, None
 
-    print(f"  Loading {path.name} (max {max_rows} rows)...")
-    df = pd.read_csv(path, nrows=max_rows, low_memory=False)
+    print(f"  Loading {path.name}...")
+    df = pd.read_csv(path, low_memory=False)
 
     # Find label column
     if "CLASS_LABEL" in df.columns:
@@ -381,7 +381,7 @@ def main():
     print("  COMPARISON SUMMARY")
     print("=" * 80)
     print(f"  {'Approach':<28} {'Acc':>7} {'Prec':>7} {'Recall':>7} {'F1':>7} {'FPR':>7} {'FNR':>7} {'ms':>7}")
-    print(f"  {'─'*28} {'─'*7} {'─'*7} {'─'*7} {'─'*7} {'─'*7} {'─'*7} {'─'*7}")
+    print(f"  {'-'*28} {'-'*7} {'-'*7} {'-'*7} {'-'*7} {'-'*7} {'-'*7} {'-'*7}")
     for name, (m, lat) in results.items():
         print(f"  {name:<28} {m['accuracy']:>7.4f} {m['precision']:>7.4f} {m['recall']:>7.4f} {m['f1']:>7.4f} {m['fpr']:>7.4f} {m['fnr']:>7.4f} {lat:>6.1f}")
     print("=" * 80)
@@ -401,7 +401,7 @@ def main():
         for name, (m, lat) in results.items():
             f.write(f"{name:<28} {m['accuracy']:>7.4f} {m['precision']:>7.4f} {m['recall']:>7.4f} {m['f1']:>7.4f} {m['fpr']:>7.4f} {m['fnr']:>7.4f}\n")
 
-    print(f"\n  ✓ Report saved → {report_path}")
+    print(f"\n  Report saved -> {report_path}")
 
 
 if __name__ == "__main__":
