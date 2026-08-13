@@ -20,41 +20,159 @@ Together they form a **detect → evaluate → decide → respond** loop that ru
 
 ## 🏗️ System Architecture v2.0
 
+### 📐 High-Level Architectural Block Diagram
+
 ```
-User Browser / Windows System
-        │
-        ├─ Chrome Extension (Manifest V3) — Zero Trust Aware
-        │      ├─ background.js   → scans every URL + calls ZT evaluate_access()
-        │      ├─ content.js      → injects threat banners + link tooltips
-        │      └─ popup.html      → trust scores, ZT decision, incidents panel
-        │
-        └─ Flask API (port 5000)
-               │
-               ├─ /api/zero-trust/*     ← Zero Trust pipeline APIs (20+ endpoints)
-               ├─ /api/assessment/*     ← Security Assessment APIs
-               ├─ /predict             ← Extension scan
-               ├─ /api/scan            ← Manual scan
-               └─ /dashboard           ← Web dashboard (19 pages total)
-                      │
-                      ├─ ABTD Detection Engine (5 layers) [v1.0]
-                      │      ├─ Layer 1: Feature Extraction
-                      │      ├─ Layer 2: Random Forest Classifier (40%)
-                      │      ├─ Layer 3: Isolation Forest Anomaly (20%)
-                      │      ├─ Layer 4: Heuristic Rule Engine (25%)
-                      │      └─ Layer 5: WHOIS + DNSBL Reputation (15%)
-                      │
-                      └─ Zero Trust Pipeline (10 steps) [v2.0]
-                             ├─ Step 1:  Identity Manager       (Windows SID, privilege)
-                             ├─ Step 2:  Device Assessor        (Firewall, Defender, patches)
-                             ├─ Step 3:  Application Assessor   (Authenticode, publisher)
-                             ├─ Step 4:  Process Assessor       (masquerading, parent-child)
-                             ├─ Step 5:  Resource Registry      (sensitivity-based ACL)
-                             ├─ Step 6:  Risk Calculator        (8-signal weighted score)
-                             ├─ Step 7:  Behavior Engine        (temporal chain analysis)
-                             ├─ Step 8:  Trust Manager          (per-entity trust state)
-                             ├─ Step 9:  Policy Engine          (10 JSON-configured policies)
-                             └─ Step 10: Response Engine        (ALLOW/MONITOR/RESTRICT/BLOCK)
++---------------------------------------------------------------------------------------------------+
+|                                1. CLIENT & PRESENTATION LAYER                                     |
+|  +---------------------------+   +----------------------------+   +----------------------------+  |
+|  | Enterprise Web Dashboard  |   | Chrome Browser Extension   |   | Desktop Notification Alert |  |
+|  | (HTML5 / Glass CSS / JS)  |   | (Manifest V3 Background)   |   | (Plyer System Tray)        |  |
+|  +-------------+-------------+   +--------------+-------------+   +--------------+-------------+  |
++----------------|--------------------------------|--------------------------------|----------------+
+                 |                                |                                |
+                 v                                v                                v
++---------------------------------------------------------------------------------------------------+
+|                                2. BACKEND API GATEWAY (Flask)                                     |
+|   /dashboard | /scanner | /api/predict | /api/scan | /api/zero-trust/* | /api/stats | /api/status   |
++------------------------------------------------+--------------------------------------------------+
+                                                 |
+                       +-------------------------+-------------------------+
+                       |                                                   |
+                       v                                                   v
++---------------------------------------------+   +-------------------------------------------------+
+|   3. 5-LAYER AI THREAT DETECTION ENGINE     |   |       4. ZERO TRUST SECURITY ARCHITECTURE       |
+| +-----------------------------------------+ |   | +-----------------------+ +-------------------+ |
+| | Layer 1: Rule Engine & Heuristics       | |   | | Identity Manager      | | Device Assessor   | |
+| +--------------------+--------------------+ |   | | (Windows SID / Priv)  | | (Defender/Patch)| |
+|                      |                      |   | +-----------+-----------+ +---------+---------+ |
+|                      v                      |   |             |                     |           |
+| +-----------------------------------------+ |   |             v                     v           |
+| | Layer 2: ML Classifiers (RF / XGBoost)  | |   | +-------------------------------------------+ |
+| +--------------------+--------------------+ |   | | App Trust Assessor | Process Assessor     | |
+|                      |                      |   | +-----------+-------------------+-----------+ |
+|                      v                      |   |             |                   |             |
+| +-----------------------------------------+ |   |             +---------+---------+             |
+| | Layer 3: File & YARA PE Inspector       | |   |                       |                       |
+| +--------------------+--------------------+ |   |                       v                       |
+|                      |                      |   | +-------------------------------------------+ |
+|                      v                      |   | | Risk Calculator (Weighted Score 0-100)    | |
+| +-----------------------------------------+ |   | +---------------------+---------------------+ |
+| | Layer 4: Deep Learning Token Analysis   | |   |                       |                       |
+| +--------------------+--------------------+ |   |                       v                       |
+|                      |                      |   | +-------------------------------------------+ |
+|                      v                      |   | | Dynamic Trust Manager (State & Decay)     | |
+| +-----------------------------------------+ |   | +---------------------+---------------------+ |
+| | Layer 5: Reputation & Confidence Score  | |   |                       |                       |
+| +--------------------+--------------------+ |   |                       v                       |
+|                      |                      |   | +-------------------------------------------+ |
+|                      +----------------------+-->| | Policy Engine & Access Controller Gateway | |
+|                                             |   | | (ALLOW / MONITOR / RESTRICT / BLOCK)      | |
+|                                             |   | +---------------------+---------------------+ |
++---------------------------------------------+   +-----------------------|-------------------------+
+                                                                          |
+                                                                          v
++---------------------------------------------------------------------------------------------------+
+|                               5. ACTIVE DEFENSE & MITIGATION TIER                                 |
+|  +-----------------------------------+  +---------------------------------+  +------------------+ |
+|  | Process Monitor & Network Sniffer |  | Quarantine Manager (Kill/Isolate) |  | Incident Logger  | |
+|  +-----------------------------------+  +---------------------------------+  +------------------+ |
++---------------------------------------------------------------------------------------------------+
+                                                 |
+                                                 v
++---------------------------------------------------------------------------------------------------+
+|                                6. DATA PERSISTENCE & MODELS TIER                                  |
+|  +------------------+   +-------------------+   +-------------------------+   +-----------------+ |
+|  | config.py        |   | models/*.joblib   |   | MongoDB / Offline RAM   |   | awareness/*.json| |
+|  +------------------+   +-------------------+   +-------------------------+   +-----------------+ |
++---------------------------------------------------------------------------------------------------+
 ```
+
+---
+
+### 📊 System Flowchart Diagram (Mermaid)
+
+```mermaid
+flowchart TD
+    A[Clients: Web Dashboard / Chrome Ext] --> B[Flask API Gateway]
+    
+    subgraph AI_Engine [3. 5-Layer AI Threat Detection Engine]
+        B --> C1[Layer 1: Rule Engine & Heuristics]
+        C1 --> C2[Layer 2: ML Classifiers RF/XGBoost]
+        C2 --> C3[Layer 3: File YARA PE Inspector]
+        C3 --> C4[Layer 4: Deep Learning Token Analysis]
+        C4 --> C5[Layer 5: Reputation & Confidence Score]
+    end
+
+    subgraph ZT_Pipeline [4. Zero Trust Security Architecture]
+        B --> Z1[Identity Manager]
+        B --> Z2[Device Assessor]
+        B --> Z3[App Trust Assessor]
+        B --> Z4[Process Assessor]
+        
+        Z1 & Z2 & Z3 & Z4 & C5 --> Z5[Risk Calculator Engine]
+        Z5 --> Z6[Dynamic Trust Manager]
+        Z6 --> Z7[Policy Engine & Resource Registry]
+        Z7 --> Z8[Access Controller Gateway]
+    end
+
+    subgraph Defense [5. Active Defense & Mitigation]
+        Z8 -->|High Risk Action| D1[Process Kill & File Isolation]
+        D1 --> D2[System Tray Notification Balloon]
+        D1 --> D3[Incident Logger & SOC Audit Database]
+    end
+
+    subgraph Storage [6. Models & Data Storage]
+        AI_Engine <--> S1[(Trained ML Models .joblib)]
+        ZT_Pipeline <--> S2[(MongoDB / Offline RAM DB)]
+    end
+```
+
+---
+
+### 🔄 End-to-End Execution & Request Data Flow
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as User / Chrome Ext
+    participant API as Backend Flask Gateway
+    participant Engine as 5-Layer AI Engine
+    participant ZT as Zero Trust Pipeline
+    participant Policy as Policy Engine
+    participant Agent as Active Defense Agent
+    participant DB as Persistence Layer
+
+    User->>API: 1. POST /api/predict or /api/scan (URL / Executable Payload)
+    API->>Engine: 2. Forward payload to 5-Layer AI Pipeline
+
+    Note over Engine: Layer 1: Heuristics & Rule Checks<br/>Layer 2: ML Suite (RandomForest & XGBoost)<br/>Layer 3: File PE Headers, YARA & Hashes<br/>Layer 4: Deep Learning Token Analysis<br/>Layer 5: Reputation & Confidence Score
+    Engine-->>API: 3. Return Threat Score (0-100) & Classification
+
+    API->>ZT: 4. Pass event payload to Zero Trust Pipeline
+    Note over ZT: Step 1: User Identity & Privileges<br/>Step 2: Windows Posture (Defender, HotFix, Firewall)<br/>Step 3: Authenticode Signature & App Path Risk<br/>Step 4: Parent-Child Chain & Cmdline Scanning<br/>Step 5: Resource Protection Sensitivity (Public/Critical)
+    
+    ZT->>Policy: 5. Calculate Weighted Risk (0-100) & Match Policy Rules
+    Policy-->>ZT: 6. Return Decision (ALLOW / MONITOR / RESTRICT / BLOCK)
+    
+    alt Decision == BLOCK or QUARANTINE
+        ZT->>Agent: 7. Trigger Automated Mitigation Action
+        Agent->>Agent: 8. Terminate Malicious Process & Quarantine File
+        Agent->>User: 9. Dispatch Desktop System Tray Alert Balloon
+    end
+
+    ZT->>DB: 10. Persist Incident Audit Record & Telemetry History
+    API-->>User: 11. Return Unified Security Analysis Response (JSON)
+```
+
+#### 📋 Step-by-Step Execution Lifecycle
+
+1. **Ingestion**: Requests originate from the **Chrome Extension** (intercepting web traffic) or the **Enterprise Dashboard** (manual scanning).
+2. **AI Analysis Pipeline**: The payload is evaluated sequentially through all 5 layers of the AI engine to generate an ensemble Threat Score (0–100).
+3. **Zero Trust Signal Gathering**: The **Identity Manager**, **Device Assessor**, **App Trust Assessor**, and **Process Assessor** continuously gather real-time security posture indicators from the OS.
+4. **Risk Aggregation**: The **Risk Calculator** applies normalized weights to produce the final Zero Trust Risk Score (0–100).
+5. **Policy Decision & Routing**: The **Policy Engine** evaluates active rules against the risk score and resource sensitivity to dictate the decision (`ALLOW`, `MONITOR`, `RESTRICT`, `BLOCK`, `QUARANTINE`).
+6. **Active Defense & Mitigation**: If high risk is detected, the **Quarantine Manager** isolates the file or kills the process, notifying the user via desktop balloon tips and updating the SOC Incident Log.
 
 ---
 

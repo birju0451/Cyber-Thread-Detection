@@ -377,3 +377,20 @@
 2026-08-13 17:21:43 [INFO    ] abtd.api — Manual scan [url] → https://example.com
 2026-08-13 17:21:45 [INFO    ] abtd.api — Manual scan [file] → C:/does/not/exist.exe
 2026-08-13 17:22:16 [INFO    ] abtd.system — Security assessment complete — posture=10, zt=75
+2026-08-13 17:33:26 [WARNING ] abtd.agent — wmi package not installed — USB monitoring disabled. Install: pip install wmi
+2026-08-13 17:33:54 [INFO    ] abtd.engine — ✓ Malware classifier loaded
+2026-08-13 17:34:07 [INFO    ] abtd.agent — 🔔 ℹ️ ABTD — Test Alert — Unit test notification
+2026-08-13 17:34:07 [INFO    ] abtd.agent — 🔔 ⚠️ ABTD — Long Message — xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+2026-08-13 17:34:07 [INFO    ] abtd.agent — 🔔 🔴 ABTD — Critical Test — Testing critical notification
+2026-08-13 17:36:54 [INFO    ] abtd.agent — 👁 Watching: C:\Users\birju/Downloads
+2026-08-13 17:36:54 [INFO    ] abtd.agent — 👁 Watching: C:\Users\birju\AppData\Local\Temp
+2026-08-13 17:36:54 [INFO    ] abtd.agent — ✓ File monitor started
+2026-08-13 17:36:54 [INFO    ] abtd.agent — File monitor stopped
+2026-08-13 17:39:05 [INFO    ] abtd.system — MongoDB disabled (MONGO_ENABLED=false) — running in offline mode.
+2026-08-13 17:39:05 [INFO    ] abtd.system — Flask application created — all blueprints registered
+2026-08-13 17:39:05 [INFO    ] abtd.api — Extension scan → https://www.google.com
+2026-08-13 17:39:10 [INFO    ] abtd.api — Extension scan → http://paypal-login-verify.tk/account
+2026-08-13 17:39:21 [INFO    ] abtd.api — Extension scan → https://github.com
+2026-08-13 17:39:24 [INFO    ] abtd.api — Extension scan → https://python.org
+2026-08-13 17:39:26 [INFO    ] abtd.api — Manual scan [url] → https://example.com
+2026-08-13 17:39:29 [INFO    ] abtd.api — Manual scan [file] → C:/does/not/exist.exe
