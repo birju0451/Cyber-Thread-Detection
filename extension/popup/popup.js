@@ -1,8 +1,7 @@
 /**
  * ABTD Extension — popup.js v2.0
  * ================================
- * Loads current tab analysis + Zero Trust decision,
- * handles quick scan, updates stats.
+ * Loads current tab analysis, Zero Trust status, incidents, and session stats.
  */
 
 const API = "http://127.0.0.1:5000";
@@ -13,6 +12,8 @@ async function init() {
   await loadSessionStats();
   await checkConnection();
   await loadCurrentTab();
+  await loadZeroTrustStatus();
+  await loadIncidents();
   setupScanBtn();
 }
 
@@ -240,8 +241,79 @@ function updateStatsUI() {
   if (blockedEl) blockedEl.textContent = sessionStats.blocked;
 }
 
+// ── Zero Trust Status ────────────────────────────────────────
+async function loadZeroTrustStatus() {
+  try {
+    const res = await fetch(`${API}/api/zero-trust/overview`, {
+      signal: AbortSignal.timeout(4000)
+    });
+    if (!res.ok) return;
+    const j = await res.json();
+    const d = j.data || {};
+
+    // Trust scores
+    const sysT  = Math.round(d.overall_trust_score  || 0);
+    const devT  = Math.round(d.device_trust          || 0);
+    const usrT  = Math.round(d.user_trust            || 0);
+
+    document.getElementById('zt-system-trust').textContent = sysT;
+    document.getElementById('zt-device-trust').textContent = devT;
+    document.getElementById('zt-user-trust').textContent   = usrT;
+
+    // Color helper
+    const tClass = (s) => s >= 75 ? 'trust-high' : s >= 50 ? 'trust-medium' : 'trust-low';
+    document.getElementById('zt-system-trust').className = `zt-cell-val ${tClass(sysT)}`;
+    document.getElementById('zt-device-trust').className = `zt-cell-val ${tClass(devT)}`;
+    document.getElementById('zt-user-trust').className   = `zt-cell-val ${tClass(usrT)}`;
+
+    // ZT decision based on overall trust
+    const dec = sysT >= 75 ? 'ALLOW' : sysT >= 55 ? 'MONITOR' : sysT >= 35 ? 'RESTRICT' : 'BLOCK';
+    const badge = document.getElementById('zt-decision-badge');
+    badge.textContent = dec;
+    badge.className   = `zt-decision-badge zt-${dec}`;
+
+    // Risk bar
+    const risk = 100 - sysT;
+    const rCol = risk <= 25 ? '#22c55e' : risk <= 50 ? '#f59e0b' : '#ef4444';
+    document.getElementById('zt-risk-fill').style.width      = risk + '%';
+    document.getElementById('zt-risk-fill').style.background = rCol;
+
+    // Check current tab URL risk
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab?.url?.startsWith('http')) {
+      const stored = await chrome.storage.session.get(`tab_${tab.id}`);
+      const cached = stored[`tab_${tab.id}`];
+      const urlRisk = cached ? (cached.threat_score || 0) : 0;
+      document.getElementById('zt-url-trust').textContent = urlRisk;
+      document.getElementById('zt-url-trust').className   = `zt-cell-val ${tClass(100 - urlRisk)}`;
+    } else {
+      document.getElementById('zt-url-trust').textContent = '—';
+    }
+
+  } catch(e) {
+    // API offline — ZT panel stays as default
+  }
+}
+
+// ── Incidents ─────────────────────────────────────────────────
+async function loadIncidents() {
+  try {
+    const res = await fetch(`${API}/api/zero-trust/incidents?limit=5`, {
+      signal: AbortSignal.timeout(3000)
+    });
+    if (!res.ok) return;
+    const j    = await res.json();
+    const open = j.data?.stats?.open || 0;
+    const row  = document.getElementById('incidents-row');
+    if (open > 0) {
+      document.getElementById('incident-count').textContent = open;
+      row.style.display = 'flex';
+    }
+  } catch(e) {}
+}
+
 // ── Helpers ───────────────────────────────────────────────────
-function truncate(str, n) { return str?.length > n ? str.slice(0, n) + "…" : (str || ""); }
+function truncate(str, n) { return str?.length > n ? str.slice(0, n) + '…' : (str || ''); }
 
 // ── Boot ──────────────────────────────────────────────────────
-document.addEventListener("DOMContentLoaded", init);
+document.addEventListener('DOMContentLoaded', init);

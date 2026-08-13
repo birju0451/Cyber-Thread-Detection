@@ -5,6 +5,71 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ABTD Protection</title>
   <link rel="stylesheet" href="popup.css">
+  <style>
+    /* ── Zero Trust Panel ── */
+    .zt-panel {
+      background: rgba(59, 130, 246, 0.06);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin-bottom: 10px;
+    }
+    .zt-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .zt-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: #60a5fa;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .zt-decision-badge {
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 10px;
+      font-weight: 700;
+    }
+    .zt-ALLOW      { background: rgba(34,197,94,0.15); color: #22c55e; }
+    .zt-MONITOR    { background: rgba(59,130,246,0.15); color: #60a5fa; }
+    .zt-RESTRICT   { background: rgba(245,158,11,0.15); color: #f59e0b; }
+    .zt-CHALLENGE  { background: rgba(249,115,22,0.15); color: #f97316; }
+    .zt-BLOCK      { background: rgba(239,68,68,0.15); color: #ef4444; }
+    .zt-QUARANTINE { background: rgba(168,85,247,0.15); color: #a855f7; }
+    .zt-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+    .zt-cell {
+      text-align: center;
+      background: rgba(255,255,255,0.04);
+      border-radius: 6px;
+      padding: 5px 4px;
+    }
+    .zt-cell-val  { font-size: 16px; font-weight: 800; }
+    .zt-cell-lbl  { font-size: 9px; color: #6b7280; margin-top: 1px; }
+    .trust-high   { color: #22c55e; }
+    .trust-medium { color: #f59e0b; }
+    .trust-low    { color: #ef4444; }
+    .zt-risk-bar  { height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; margin-top: 6px; overflow: hidden; }
+    .zt-risk-fill { height: 100%; border-radius: 2px; transition: width 0.5s; }
+    /* Incidents badge */
+    .incidents-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 12px;
+      background: rgba(239,68,68,0.06);
+      border-radius: 8px;
+      margin-bottom: 8px;
+      font-size: 12px;
+    }
+    .inc-count { font-weight: 800; color: #ef4444; font-size: 14px; }
+  </style>
 </head>
 <body>
 
@@ -25,11 +90,40 @@
     </div>
   </div>
 
-  <!-- Protection Status -->
-  <div class="section" id="protection-section">
-    <div class="protection-badge" id="protection-badge">
-      <span id="protection-icon">🔒</span>
-      <span id="protection-text">Protection Active</span>
+  <!-- ══ Zero Trust Status Panel ══ -->
+  <div class="section">
+    <div class="zt-panel" id="zt-panel">
+      <div class="zt-header">
+        <span class="zt-label">🛡️ Zero Trust</span>
+        <span class="zt-decision-badge zt-MONITOR" id="zt-decision-badge">—</span>
+      </div>
+      <div class="zt-grid">
+        <div class="zt-cell">
+          <div class="zt-cell-val trust-high" id="zt-system-trust">—</div>
+          <div class="zt-cell-lbl">System Trust</div>
+        </div>
+        <div class="zt-cell">
+          <div class="zt-cell-val trust-high" id="zt-device-trust">—</div>
+          <div class="zt-cell-lbl">Device Trust</div>
+        </div>
+        <div class="zt-cell">
+          <div class="zt-cell-val trust-medium" id="zt-user-trust">—</div>
+          <div class="zt-cell-lbl">User Trust</div>
+        </div>
+        <div class="zt-cell">
+          <div class="zt-cell-val trust-high" id="zt-url-trust">—</div>
+          <div class="zt-cell-lbl">URL Risk</div>
+        </div>
+      </div>
+      <div class="zt-risk-bar">
+        <div class="zt-risk-fill" id="zt-risk-fill" style="width:0%; background:#22c55e"></div>
+      </div>
+    </div>
+
+    <!-- Open Incidents -->
+    <div class="incidents-row" id="incidents-row" style="display:none">
+      <span>🚨 Open Incidents</span>
+      <span class="inc-count" id="incident-count">0</span>
     </div>
   </div>
 
@@ -105,7 +199,10 @@
 
   <!-- Footer -->
   <div class="popup-footer">
-    <a href="http://127.0.0.1:5000/dashboard" target="_blank" id="open-dashboard">Open Dashboard →</a>
+    <div style="display:flex; gap:8px">
+      <a href="http://127.0.0.1:5000/dashboard" target="_blank" id="open-dashboard">Dashboard →</a>
+      <a href="http://127.0.0.1:5000/zero-trust" target="_blank" id="open-zt">Zero Trust →</a>
+    </div>
     <span id="api-status" class="api-label">API: Offline</span>
   </div>
 </div>

@@ -1,6 +1,6 @@
 # ABTD — Adaptive Behavioral Threat Detection
 ## Project Walkthrough & Live Progress Tracker
-> Last Updated: 2026-08-11 | Status: ALL COMMANDS EXECUTED ✅
+> Last Updated: 2026-08-13 | Status: ABTD v2.0 COMPLETE ✅
 
 ---
 
@@ -338,3 +338,250 @@ d:\Cyber-Thread-Detection\
 
 > 🎉 **ABTD v1.0 — Fully Operational**
 > Run `python run.py` and open http://127.0.0.1:5000/dashboard
+
+---
+
+---
+
+# ABTD v2.0 — Zero Trust Architecture Extension
+
+> **Architect Mindset**: Never trust — always verify. Every event, every user, every process.
+
+---
+
+## ✅ PHASE A — Zero Trust Foundation (10 Modules)
+
+- [x] `zero_trust/__init__.py` — Package root
+- [x] `zero_trust/identity/identity_manager.py`
+  - Windows SID resolution via `win32security`
+  - Privilege level detection: STANDARD / ADMINISTRATOR / SYSTEM
+  - Session start time, elevation status, domain detection
+  - `get_identity_context()` → full identity dict
+  - `get_identity_risk()` → risk score + reasons list
+- [x] `zero_trust/device_trust/device_assessor.py`
+  - Firewall profile checks (Domain/Private/Public) via registry
+  - Windows Defender real-time + signature status via WMI/registry
+  - OS patch level (days since last update)
+  - Secure Boot state via UEFI registry key
+  - BitLocker encryption status per drive
+  - System resource load (CPU/RAM/Disk via psutil)
+  - `assess(force_refresh=False)` → full device assessment dict
+- [x] `zero_trust/application_trust/app_assessor.py`
+  - Authenticode signature verification via PowerShell
+  - Publisher / signer extraction
+  - SHA-256 hash-based trust caching
+  - Path risk analysis (System32 vs Temp vs AppData)
+  - `assess(exe_path)` → trust score + publisher + flags
+  - `get_app_profiles()` → all cached profiles
+- [x] `zero_trust/process_trust/process_assessor.py`
+  - Masquerading detection (svchost from non-system paths)
+  - Parent-child chain anomaly (cmd → powershell → whoami)
+  - Suspicious cmdline patterns (encoded, download cradles)
+  - Port 4444/5555/1337 connection detection
+  - `assess_process(pid, name, exe_path)` → risk score + flags
+  - `assess_all_running(max_processes)` → sorted by risk
+- [x] `zero_trust/resource_protection/resource_registry.py`
+  - 30+ pre-configured Windows sensitive resources
+  - Sensitivity levels: PUBLIC / INTERNAL / SENSITIVE / CRITICAL
+  - `check_access(resource, trust_score)` → allowed / denied / reason
+  - `list_resources()` → full registry
+- [x] `zero_trust/risk_engine/risk_calculator.py`
+  - 8 weighted signals: identity, device, app, process, resource, behavior, abtd, network
+  - `calculate(**signals)` → overall_risk + breakdown dict
+- [x] `zero_trust/trust_manager/trust_manager.py`
+  - Per-entity trust state (process, user, device, app, network)
+  - Trust score with decay (high risk decays fast) and recovery
+  - Incident counter per entity
+  - `update_trust(type, id, risk_score)` → updates state
+  - `get_trust_state(type, id)` → current trust + level + history
+  - `get_all_trust_scores()` → all entities grouped by type
+- [x] `zero_trust/policy_engine/policy_engine.py` + `policies.json`
+  - 10 configurable priority-ordered policies
+  - Conditions: min_risk, max_trust, event_type, classification, privilege, flags
+  - Actions: ALLOW / MONITOR / RESTRICT / CHALLENGE / BLOCK / QUARANTINE
+  - `evaluate(context)` → decision + policy_name + reason
+  - `add_policy(dict)` — runtime policy injection
+- [x] `zero_trust/access_control/access_controller.py`
+  - **10-step ZT pipeline orchestrator** — main entry point
+  - `evaluate_access(event)` → full pipeline result dict
+  - `get_zt_overview()` — live trust scores + decision stats
+  - `get_recent_decisions(n)` — in-memory decision log
+
+---
+
+## ✅ PHASE B — Behavioral Intelligence Engine
+
+- [x] `abtd/behavior_engine/behavior_engine.py`
+  - Per-entity behavioral profiles with event history
+  - Temporal chain analysis: detects 8 attack patterns
+    - Drive-By Download, C2 Beaconing, Credential Theft,
+    - Lateral Movement, Data Exfiltration, Persistence,
+    - Ransomware, Privilege Escalation
+  - `record_event(entity_id, event_type, details, risk_delta)`
+  - `get_profile(entity_id)` / `get_all_profiles()`
+- [x] `abtd/correlation_engine/correlation_engine.py`
+  - Groups security events into incidents by entity + time window
+  - Severity assignment: LOW / MEDIUM / HIGH / CRITICAL
+  - MITRE ATT&CK tactic tagging
+  - `correlate(event)` → incident or None
+  - `get_incidents(status, severity, limit)`
+  - `resolve_incident(id)` → marks RESOLVED
+  - `get_statistics()` → open/resolved/by_severity counts
+- [x] `abtd/response_engine/response_engine.py`
+  - SIMULATION MODE by default (`.env` controlled)
+  - Actions: ALERT / LOG / NOTIFY / RESTRICT_NETWORK / QUARANTINE_FILE / TERMINATE_PROCESS
+  - All destructive actions dry-run in simulation mode
+  - `respond(incident)` → actions_taken list
+
+---
+
+## ✅ PHASE C — Database Extension
+
+- [x] Extended `backend/database.py` with 8 new ZT methods:
+  - `log_access_decision(decision)` — persist ZT pipeline result
+  - `get_access_decisions(page, decision, event_type)` — paginated log
+  - `get_decision_stats()` — ALLOW/MONITOR/RESTRICT/BLOCK aggregates
+  - `log_incident(incident)` — persist correlated incident
+  - `get_incidents(status, severity, limit)` — filtered incident list
+  - `save_device_posture(posture)` — device assessment snapshot
+  - `save_assessment(assessment)` / `get_latest_assessment()`
+  - `write_audit_log(entity, action, outcome, details)` — immutable audit
+- [x] 12 new MongoDB indexes for ZT collections
+- [x] Extended `config.py` with ZT collections, thresholds, risk weights
+
+---
+
+## ✅ PHASE D — Windows Agent Extension (6 Threads)
+
+- [x] `agent/usb_monitor.py`
+  - Detects removable drive insertion via psutil.disk_partitions()
+  - Seeds baseline on startup (no false alerts for existing drives)
+  - Scans all executables on inserted drive through ABTD engine
+  - Runs ZT `evaluate_access()` for every insertion event
+  - Records behavioral event + fires desktop notification
+- [x] `agent/startup_monitor.py`
+  - Monitors HKCU + HKLM `Run` / `RunOnce` registry keys
+  - Monitors Windows Startup folder
+  - Detects NEW or CHANGED entries vs baseline snapshot
+  - Triggers ZT evaluation + behavioral registry_modify event
+  - Extracts and analyzes referenced executable
+- [x] Extended `agent/agent.py` — added USBMonitor + StartupMonitor threads
+- [x] Extended `agent/process_monitor.py` — v2.0 ZT pipeline integration:
+  - Step 1: ABTD engine analysis
+  - Step 2: BehaviorEngine `record_event()`
+  - Step 3: `access_controller.evaluate_access()`
+  - Step 4: DB `log_access_decision()`
+  - Step 5: Desktop notification for BLOCK/QUARANTINE
+
+---
+
+## ✅ PHASE E — Flask API Extension (20+ New Endpoints)
+
+- [x] `backend/routes/zero_trust_routes.py` — all ZT endpoints
+- [x] `backend/routes/assessment_routes.py` — async assessment runner
+- [x] Extended `backend/routes/page_routes.py` — 11 new page routes
+- [x] Extended `backend/app.py` — registered 2 new blueprints
+
+---
+
+## ✅ PHASE F — Security Assessment Engine
+
+- [x] `scanner/security_assessment.py`
+  - **12 assessment categories**: User Privileges, Device Posture, Startup Programs,
+    Scheduled Tasks, Registry Security, Running Processes, Downloads Folder,
+    Network Connections, Browser Extensions, Security Services
+  - **4 composite scores**:
+    - Security Posture Score (0–100)
+    - Zero Trust Readiness Score (0–100)
+    - Behavioral Risk Score (0–100)
+    - Overall Security Risk (0–100)
+  - Trust level classification: HIGH TRUST / MODERATE TRUST / LOW TRUST / UNTRUSTED
+  - Top-10 prioritized recommendations
+  - Progress callback for async polling
+  - `SecurityAssessment(progress_callback).run()` → full assessment dict
+
+---
+
+## ✅ PHASE G — Dashboard Expansion (11 New Pages)
+
+| Page | URL | Description |
+|------|-----|-------------|
+| ZT Overview | `/zero-trust` | Trust scores, 8-step pipeline visualizer, decision stats, flags |
+| Access Decisions | `/access-decisions` | Filterable decision log, expandable detail rows |
+| Device Trust | `/device-trust` | Firewall/AV/patch/Secure Boot/services checks |
+| User Trust | `/user-trust` | Identity context, risk score, all entity trust history |
+| Application Trust | `/application-trust` | Signature, publisher, path risk for tracked apps |
+| Process Trust | `/process-trust` | Live process risk table with visual bars |
+| Incidents | `/incidents` | Correlated incidents with severity, event chain, resolve action |
+| Network Activity | `/network-activity` | Behavioral network events, stats, threat history |
+| File Activity | `/file-activity` | File scans, suspicious downloads, quarantine queue |
+| Registry Activity | `/registry-activity` | Startup entries, registry risk findings, behavioral events |
+| Security Assessment | `/assessment` | Async runner, progress bar, 4 score cards, findings, history |
+
+- [x] Extended `frontend/templates/base.html` — full ZT navigation (5 new sections, 14 new links)
+
+---
+
+## ✅ PHASE H — Chrome Extension Upgrade
+
+- [x] `extension/popup/popup.html` — Zero Trust status panel added:
+  - System Trust, Device Trust, User Trust, URL Risk scores
+  - ZT Decision badge (ALLOW / MONITOR / RESTRICT / BLOCK)
+  - Risk bar visualization
+  - Open Incidents count badge
+  - Direct link to Zero Trust dashboard
+- [x] `extension/popup/popup.js` — `loadZeroTrustStatus()` + `loadIncidents()` functions
+
+---
+
+## ✅ PHASE I — Test Suite (100+ Total Tests)
+
+- [x] `tests/test_zero_trust.py` — 30+ tests across all 9 ZT modules:
+  - Identity, Device, App, Process Assessors
+  - Risk Calculator (max/zero/boundary inputs)
+  - Trust Manager (state transitions)
+  - Policy Engine (ALLOW/BLOCK routing)
+  - Resource Registry (access control)
+  - **Drive-By Download end-to-end scenario**
+- [x] `tests/test_correlation.py` — Behavior + Correlation + Response:
+  - Event recording, risk accumulation
+  - Incident creation from multiple events
+  - Severity escalation validation
+  - Simulation mode safety (no real process termination)
+  - **Drive-By chain behavioral detection**
+- [x] `tests/test_assessment.py` — Security Assessment:
+  - Score bounds (0–100)
+  - Finding structure + severity validity
+  - Progress callback monotonicity
+  - Instance isolation
+
+---
+
+## ✅ PHASE J — Documentation
+
+- [x] `README.md` — Completely rewritten for v2.0:
+  - Full architecture diagram (v1.0 + v2.0 layers)
+  - All 17 ZT API endpoints documented
+  - Updated project structure with all new modules
+  - ZT decision table + new environment variables
+- [x] `WALKTHROUGH.md` — This document updated with complete v2.0 progress
+
+---
+
+## 📊 Final Completion Summary
+
+| Phase | Status | Deliverables |
+|-------|--------|-------------|
+| A: ZT Foundation | ✅ DONE | 10 modules, 10-step pipeline |
+| B: Behavioral Intelligence | ✅ DONE | Behavior, Correlation, Response engines |
+| C: Database | ✅ DONE | 8 new methods, 12 indexes |
+| D: Agent Extension | ✅ DONE | USB + Startup monitors, ZT in ProcessMonitor |
+| E: Flask API | ✅ DONE | 20+ endpoints, 2 new blueprints |
+| F: Assessment Engine | ✅ DONE | 12-category assessment, 4 scores |
+| G: Dashboard | ✅ DONE | 11 new pages, updated nav |
+| H: Chrome Extension | ✅ DONE | ZT panel, incidents badge |
+| I: Testing | ✅ DONE | 100+ tests, Drive-By scenario |
+| J: Documentation | ✅ DONE | README + WALKTHROUGH |
+
+> 🎉 **ABTD v2.0 — FULLY OPERATIONAL**
+> Run `python run.py` → http://127.0.0.1:5000/zero-trust

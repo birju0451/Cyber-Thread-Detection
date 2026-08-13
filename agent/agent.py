@@ -4,12 +4,12 @@ agent/agent.py
 ABTD Windows Background Agent — Main Orchestrator v2.0.
 
 Starts and manages all monitoring sub-threads:
-  - File Monitor      (watchdog)
-  - Process Monitor   (psutil)
-  - Registry Monitor  (winreg)
-  - Network Monitor   (psutil)
-  - USB Monitor       (drive letter polling)
-  - Startup Monitor   (startup folders + scheduled tasks)
+  - File Monitor       (watchdog)   — file creation/modification
+  - Process Monitor    (psutil)     — suspicious process detection
+  - Registry Monitor   (winreg)     — registry persistence changes
+  - Network Monitor    (psutil)     — suspicious connections
+  - USB Monitor        (drive letter polling)
+  - Startup Monitor    (startup folders + scheduled tasks)
 
 All security-relevant events are routed through:
   Event → Classifier → ABTD → Zero Trust → Policy → Response → MongoDB
@@ -50,7 +50,7 @@ class ABTDAgent:
 
         log_agent.info("=" * 55)
         log_agent.info("  ABTD Windows Agent v2.0 — Starting")
-        log_agent.info("  Zero Trust + ABTD Continuous Monitoring")
+        log_agent.info("  Zero Trust Pipeline: ACTIVE")
         log_agent.info("=" * 55)
 
         self._running = True
@@ -64,6 +64,7 @@ class ABTDAgent:
             from agent.file_monitor import FileMonitor
             self._file_mon = FileMonitor()
             self._file_mon.start()
+            log_agent.info("  ▸ FileMonitor started (watchdog)")
         except Exception as e:
             log_agent.warning(f"File monitor failed to start: {e}")
 
@@ -76,13 +77,15 @@ class ABTDAgent:
         # ── Network Monitor ───────────────────────────────────────────
         self._spawn_thread(self._run_network_monitor, "NetworkMonitor")
 
-        # ── USB Monitor ───────────────────────────────────────────────
+        # ── USB Monitor (v2.0) ────────────────────────────────────────
         self._spawn_thread(self._run_usb_monitor, "USBMonitor")
 
-        # ── Startup Monitor ───────────────────────────────────────────
+        # ── Startup Monitor (v2.0) ────────────────────────────────────
         self._spawn_thread(self._run_startup_monitor, "StartupMonitor")
 
-        log_agent.info(f"✓ ABTD Agent running | {len(self._threads)} monitoring threads")
+        log_agent.info(
+            f"✓ ABTD Agent v2.0 active | {len(self._threads)} monitoring threads"
+        )
         log_agent.info(f"  Scan interval: {config.AGENT_SCAN_INTERVAL_S}s")
         log_agent.info(f"  ZT Pipeline: Active")
 
@@ -92,26 +95,44 @@ class ABTDAgent:
         self._threads.append(t)
         log_agent.info(f"  ▸ {name} thread started")
 
+    # ── Monitor Thread Runners ────────────────────────────────────────────────
+
     def _run_process_monitor(self) -> None:
         try:
             from agent.process_monitor import ProcessMonitor
             ProcessMonitor().run_forever(config.AGENT_SCAN_INTERVAL_S)
         except Exception as e:
-            log_agent.error(f"ProcessMonitor crashed: {e}")
+            log_agent.error(f"ProcessMonitor crashed: {e}", exc_info=True)
 
     def _run_registry_monitor(self) -> None:
         try:
             from agent.registry_monitor import RegistryMonitor
             RegistryMonitor().run_forever(interval=60)
         except Exception as e:
-            log_agent.error(f"RegistryMonitor crashed: {e}")
+            log_agent.error(f"RegistryMonitor crashed: {e}", exc_info=True)
 
     def _run_network_monitor(self) -> None:
         try:
             from agent.network_monitor import NetworkMonitor
             NetworkMonitor().run_forever(interval=20)
         except Exception as e:
-            log_agent.error(f"NetworkMonitor crashed: {e}")
+            log_agent.error(f"NetworkMonitor crashed: {e}", exc_info=True)
+
+    def _run_usb_monitor(self) -> None:
+        try:
+            from agent.usb_monitor import USBMonitor
+            USBMonitor().run_forever(interval=10)
+        except Exception as e:
+            log_agent.error(f"USBMonitor crashed: {e}", exc_info=True)
+
+    def _run_startup_monitor(self) -> None:
+        try:
+            from agent.startup_monitor import StartupMonitor
+            StartupMonitor().run_forever(interval=60)
+        except Exception as e:
+            log_agent.error(f"StartupMonitor crashed: {e}", exc_info=True)
+
+    # ── Shutdown ──────────────────────────────────────────────────────────────
 
     def _run_usb_monitor(self) -> None:
         try:
