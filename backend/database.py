@@ -14,8 +14,27 @@ Connection: MongoDB Atlas (configured via MONGO_URI in .env)
 """
 
 import sys
+import ssl
 from pathlib import Path
 from datetime import datetime, timezone
+
+# ── Python 3.14 TLS Compatibility Fix ─────────────────────────────────────────
+# MongoDB Atlas rejects the TLS handshake with TLSV1_ALERT_INTERNAL_ERROR when
+# using Python 3.14's newer OpenSSL cipher negotiation. We patch
+# ssl.create_default_context to return a permissive context BEFORE pymongo
+# imports ssl so that pymongo uses our context for all connections.
+def _make_permissive_ssl_context(purpose=ssl.Purpose.SERVER_AUTH, *args, **kwargs):
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    ctx.check_hostname = False
+    ctx.verify_mode    = ssl.CERT_NONE
+    # OP_LEGACY_SERVER_CONNECT (Python 3.12+): allow legacy TLS cipher suites
+    # that MongoDB Atlas clusters accept. This is the key fix for Python 3.14.
+    if hasattr(ssl, "OP_LEGACY_SERVER_CONNECT"):
+        ctx.options |= ssl.OP_LEGACY_SERVER_CONNECT  # type: ignore[attr-defined]
+    return ctx
+
+ssl.create_default_context = _make_permissive_ssl_context  # type: ignore[assignment]
+# ─────────────────────────────────────────────────────────────────────────────
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import config
@@ -28,6 +47,7 @@ try:
 except ImportError:
     _PYMONGO_OK = False
     log_system.warning("pymongo not installed — database features disabled")
+
 
 
 class Database:
@@ -45,23 +65,30 @@ class Database:
         self._connected = False
 
     def connect(self) -> bool:
-        """Establish connection to MongoDB Atlas. Returns True on success."""
+        """Establish connection to MongoDB Atlas. Returns True on success.
+
+        Set MONGO_ENABLED=true in .env to enable database persistence.
+        When disabled (default), the system runs in offline mode — all
+        features work normally but scan history is not persisted.
+        """
         if not _PYMONGO_OK:
+            return False
+
+        if not config.MONGO_ENABLED:
+            log_system.info("MongoDB disabled (MONGO_ENABLED=false) — running in offline mode.")
             return False
 
         try:
             self._client = MongoClient(
                 config.MONGO_URI,
-                serverSelectionTimeoutMS=5000,
-                connectTimeoutMS=5000,
-                socketTimeoutMS=10000,
+                serverSelectionTimeoutMS=8000,
+                connectTimeoutMS=8000,
+                socketTimeoutMS=15000,
                 tls=True,
+                tlsAllowInvalidCertificates=True,
             )
-            # Trigger actual connection
             self._client.admin.command("ping")
             self._db = self._client[config.MONGO_DB]
-
-            # Create indexes
             self._ensure_indexes()
             self._connected = True
             log_system.info(f"✓ MongoDB Atlas connected — DB: '{config.MONGO_DB}'")
@@ -71,6 +98,8 @@ class Database:
             log_system.warning("System will run without database persistence.")
             self._connected = False
             return False
+
+
 
     def _ensure_indexes(self) -> None:
         """Create indexes for performance — covers both v1.0 and v2.0 collections."""

@@ -277,6 +277,165 @@ class ABTDEngine:
             "analysis_time_ms"   : elapsed_ms,
         }
 
+    # ── Full Hybrid Analysis (7 Layers) ──────────────────────────
+
+    def full_analysis(self, event: dict) -> dict:
+        """
+        Full 7-layer ABTD hybrid analysis orchestrating ALL detection modules.
+
+        Layers:
+          1. Feature Extraction (extract_url_features / extract_file_features)
+          2. Random Forest Classifier (supervised ML)
+          3. Isolation Forest Anomaly Detector (unsupervised ML)
+          4. Rule-Based Heuristics
+          5. Reputation Analysis
+          6. Behavior Engine (temporal pattern profiling)
+          7. Correlation Engine (multi-event incident grouping)
+          → Adaptive Weighted Fusion → final score & classification
+
+        Args:
+            event: {
+                "event_type": str, "resource": str,
+                "process_name": str, "details": dict, ...
+            }
+
+        Returns:
+            Full ABTD analysis result with all 7 layer scores.
+        """
+        t_start = time.time()
+        event_type   = event.get("event_type", "unknown")
+        resource     = event.get("resource", "")
+        process_name = event.get("process_name", "")
+        pid          = event.get("process_pid", 0)
+        cmdline      = event.get("process_cmdline", "")
+
+        # ── Base ABTD Analysis (Layers 1-5) ───────────────────────
+        if event_type in ("url_visit", "url_block"):
+            base_result = self.analyze_url(resource, skip_reputation=False)
+        elif event_type in ("file_execute", "file_download", "file_write",
+                            "file_create", "file_delete"):
+            if Path(resource).exists():
+                base_result = self.analyze_file(resource)
+            else:
+                base_result = {
+                    "threat_score": 0, "classification": "UNKNOWN",
+                    "confidence": 0.3, "reasons": [f"File inaccessible: {resource}"],
+                    "detection_modules": {},
+                }
+        elif event_type in ("process_create", "blocked_process"):
+            base_result = self.analyze_process(pid, process_name, cmdline)
+        else:
+            # For other event types, use rule engine only
+            rule_flags = rule_engine.evaluate_event(event)
+            rule_score = sum(rule_flags.values()) * 20 if rule_flags else 0
+            base_result = {
+                "threat_score": min(rule_score, 100),
+                "classification": (
+                    "CRITICAL" if rule_score >= 75 else
+                    "MALICIOUS" if rule_score >= 50 else
+                    "SUSPICIOUS" if rule_score >= 25 else "SAFE"
+                ),
+                "confidence": 0.5,
+                "reasons": [f"Rule: {k}" for k, v in (rule_flags or {}).items() if v],
+                "detection_modules": {"rules": {"score": rule_score, "flags": rule_flags}},
+            }
+
+        # ── Layer 6: Behavior Engine ──────────────────────────────
+        behavior_score = 0.0
+        behavior_data  = {}
+        try:
+            from abtd.behavior_engine.behavior_engine import behavior_engine
+            entity_id = process_name or resource[:50]
+            behavior_engine.record_event(
+                entity_id  = entity_id,
+                event_type = event_type,
+                details    = event.get("details", {}),
+                risk_delta = base_result.get("threat_score", 0) * 0.1,
+            )
+            behavior_score = behavior_engine.get_behavior_risk(entity_id)
+            behavior_data  = {
+                "entity_id": entity_id,
+                "risk": behavior_score,
+                "profile": behavior_engine.get_profile(entity_id),
+            }
+        except Exception:
+            pass
+
+        # ── Layer 7: Correlation Engine ───────────────────────────
+        correlation_data = {}
+        try:
+            from abtd.correlation_engine.correlation_engine import correlation_engine
+            threat_score = base_result.get("threat_score", 0)
+            severity = (
+                "CRITICAL" if threat_score >= 75 else
+                "HIGH"     if threat_score >= 50 else
+                "MEDIUM"   if threat_score >= 25 else "LOW"
+            )
+            corr_event = {
+                "event_type" : event_type,
+                "entity_id"  : process_name or resource[:50],
+                "severity"   : severity,
+                "risk_score" : threat_score,
+                "description": "; ".join(base_result.get("reasons", [])[:3]),
+                "source"     : event.get("source", "engine"),
+            }
+            correlation_data = correlation_engine.submit_event(corr_event)
+        except Exception:
+            pass
+
+        # ── Fusion: Blend Layer 6 & 7 into base score ─────────────
+        base_score = base_result.get("threat_score", 0)
+        # Behavior contributes up to +15 points
+        behavior_boost = min(behavior_score * 0.15, 15)
+        # Correlation contributes up to +10 points if incident was created
+        corr_boost = 10 if correlation_data.get("incident_created") else 0
+
+        final_score = min(100, base_score + behavior_boost + corr_boost)
+        final_score = round(final_score, 1)
+
+        # Re-classify based on final score
+        if final_score >= 75:
+            final_cls = "CRITICAL"
+        elif final_score >= 50:
+            final_cls = "MALICIOUS"
+        elif final_score >= 25:
+            final_cls = "SUSPICIOUS"
+        else:
+            final_cls = "SAFE"
+
+        elapsed_ms = round((time.time() - t_start) * 1000, 1)
+
+        # Build 7-layer detection module report
+        modules = base_result.get("detection_modules", {})
+        modules["behavior"]    = {"score": behavior_score, "data": behavior_data}
+        modules["correlation"] = {"score": corr_boost,     "data": correlation_data}
+
+        reasons = list(base_result.get("reasons", []))
+        if behavior_score > 30:
+            reasons.append(f"Behavioral anomaly detected (risk={behavior_score:.0f})")
+        if corr_boost > 0:
+            reasons.append("Correlated with active security incident")
+
+        return {
+            "event_type"         : event_type,
+            "resource"           : resource,
+            "target_type"        : base_result.get("target_type", event_type),
+            "timestamp"          : datetime.now(timezone.utc).isoformat(),
+            "classification"     : final_cls,
+            "threat_score"       : final_score,
+            "confidence"         : base_result.get("confidence", 0.5),
+            "recommended_action" : base_result.get("recommended_action", ""),
+            "color"              : base_result.get("color", "#6b7280"),
+            "icon"               : base_result.get("icon", "❓"),
+            "reasons"            : reasons,
+            "detection_modules"  : modules,
+            "behavior_score"     : behavior_score,
+            "correlation_active" : corr_boost > 0,
+            "analysis_layers"    : 7,
+            "analysis_time_ms"   : elapsed_ms,
+        }
+
 
 # Singleton used by all routes and agent
 engine = ABTDEngine()
+

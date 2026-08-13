@@ -4,7 +4,9 @@ agent/network_monitor.py
 Monitors active network connections for suspicious behaviour:
   - Connections to known bad ports
   - High connection count (possible C2 beacon)
-  - Connections to unusual countries / IPs
+  - Connections to unusual IPs
+
+Security-relevant connections are routed through the Zero Trust pipeline.
 
 Uses: psutil.net_connections()
 """
@@ -82,6 +84,13 @@ class NetworkMonitor:
                 self._alerted_conns.add(key)
                 log_agent.warning(f"🌐 {alert['title']}")
 
+                # Get process name for the connection
+                proc_name = "unknown"
+                try:
+                    proc_name = psutil.Process(conn.pid).name()
+                except Exception:
+                    pass
+
                 db.log_alert(
                     alert_type  = "network",
                     severity    = alert["severity"],
@@ -89,7 +98,7 @@ class NetworkMonitor:
                     description = alert["description"],
                     source      = "network_monitor",
                     details     = {"remote_ip": remote_ip, "remote_port": remote_port,
-                                   "pid": conn.pid},
+                                   "pid": conn.pid, "process_name": proc_name},
                 )
 
                 notify(
@@ -97,6 +106,27 @@ class NetworkMonitor:
                     message  = alert["description"],
                     severity = "WARNING",
                 )
+
+                # Route through Zero Trust pipeline
+                try:
+                    from agent.zt_pipeline import process_security_event
+                    event = {
+                        "event_type"    : "network_connect",
+                        "source"        : "network_monitor",
+                        "resource"      : f"{remote_ip}:{remote_port}",
+                        "process_name"  : proc_name,
+                        "process_pid"   : conn.pid or 0,
+                        "details"       : {
+                            "remote_ip"  : remote_ip,
+                            "remote_port": remote_port,
+                            "pid"        : conn.pid,
+                            "local_port" : conn.laddr.port if conn.laddr else 0,
+                            "process_name": proc_name,
+                        },
+                    }
+                    process_security_event(event)
+                except Exception as e:
+                    log_agent.debug(f"ZT pipeline for network event failed: {e}")
 
                 alerts.append(alert)
 

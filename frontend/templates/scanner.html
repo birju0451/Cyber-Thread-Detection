@@ -1,77 +1,97 @@
 {% extends "base.html" %}
-{% block title %}URL & File Scanner{% endblock %}
-{% block page_title %}URL & File Scanner{% endblock %}
-{% block page_subtitle %}Analyze any URL or file with the 5-layer ABTD detection engine{% endblock %}
+{% block title %}Payload Scanner{% endblock %}
+{% block page_title %}Deep Payload Analysis Console{% endblock %}
+{% block page_subtitle %}Execute multi-layered behavioral & ML analysis on suspicious URLs or binary artifacts{% endblock %}
 
 {% block content %}
-<div style="max-width:860px">
+<div style="max-width:920px">
 
-  <!-- Scan Form -->
+  <!-- Scan Form Card -->
   <div class="card mb-24">
-    <div class="card-title mb-16">🔍 Enter Target to Analyze</div>
+    <div class="card-header mb-16">
+      <div class="card-title">
+        <div class="card-title-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        </div>
+        Target Payload Submission
+      </div>
+    </div>
+
     <form id="scan-form">
-      <div class="flex gap-12 mb-16">
+      <div class="flex gap-12 mb-16" style="flex-wrap:wrap">
         <select id="scan-type" class="form-input" style="width:160px;flex-shrink:0">
-          <option value="url">🌐 URL</option>
-          <option value="file">📁 File Path</option>
+          <option value="url">URL String</option>
+          <option value="file">Binary / File</option>
         </select>
+
         <input
           id="scan-input"
           type="text"
           class="form-input"
-          placeholder="https://example.com  or  C:\Users\...\file.exe"
+          style="flex:1;min-width:280px"
+          placeholder="Enter URL (e.g. http://paypal-verify-login.tk) or absolute file path..."
           autocomplete="off"
           spellcheck="false"
         >
-        <button id="scan-btn" type="submit" class="btn btn-primary btn-lg" style="flex-shrink:0">
-          Scan Now
+
+        <button id="scan-btn" type="submit" class="btn btn-primary" style="padding:10px 24px;flex-shrink:0">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          Execute Analysis
         </button>
       </div>
 
-      <!-- Quick examples -->
-      <div class="flex gap-8 flex-wrap" style="font-size:12px">
-        <span class="text-muted">Try:</span>
-        <button type="button" class="btn btn-outline btn-sm example-btn" data-val="http://paypal-secure-login.tk/verify" data-type="url">Phishing URL</button>
-        <button type="button" class="btn btn-outline btn-sm example-btn" data-val="https://google.com" data-type="url">Safe URL</button>
-        <button type="button" class="btn btn-outline btn-sm example-btn" data-val="https://bit.ly/3xABC12" data-type="url">URL Shortener</button>
+      <!-- Test Presets -->
+      <div class="flex gap-8 items-center flex-wrap" style="font-size:12px">
+        <span class="text-muted">Test Vectors:</span>
+        <button type="button" class="btn btn-outline btn-sm example-btn" data-val="http://paypal-secure-login.tk/verify?user=test" data-type="url">Phishing Vector</button>
+        <button type="button" class="btn btn-outline btn-sm example-btn" data-val="https://google.com" data-type="url">Verified Safe Domain</button>
+        <button type="button" class="btn btn-outline btn-sm example-btn" data-val="https://bit.ly/3xABC12" data-type="url">Shortened Redirect</button>
+        <button type="button" class="btn btn-outline btn-sm example-btn" data-val="http://192.168.1.100/login" data-type="url">Direct IP Host</button>
       </div>
     </form>
   </div>
 
-  <!-- Scan Steps Animation -->
+  <!-- Progress Stepper Container -->
   <div id="scan-steps" class="card mb-24" style="display:none"></div>
 
-  <!-- Scan Result -->
+  <!-- Scan Output Container -->
   <div id="scan-result"></div>
 
-  <!-- How it works -->
+  <!-- 5-Layer Engine Pipeline -->
   <div class="card mt-24">
-    <div class="card-title mb-16">🧠 How ABTD Analyzes Threats</div>
-    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;text-align:center">
-      <div style="padding:16px;background:var(--surface-2);border-radius:var(--radius-sm)">
-        <div style="font-size:24px;margin-bottom:8px">📐</div>
-        <div style="font-size:12px;font-weight:700;color:var(--text-primary);margin-bottom:4px">Feature Extraction</div>
-        <div style="font-size:11px;color:var(--text-muted)">30 URL signals extracted</div>
+    <div class="card-header mb-16">
+      <div class="card-title">
+        <div class="card-title-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg>
+        </div>
+        5-Layer Behavioral Inspection Pipeline
       </div>
-      <div style="padding:16px;background:var(--surface-2);border-radius:var(--radius-sm)">
-        <div style="font-size:24px;margin-bottom:8px">🌲</div>
-        <div style="font-size:12px;font-weight:700;color:var(--text-primary);margin-bottom:4px">Random Forest</div>
-        <div style="font-size:11px;color:var(--text-muted)">Supervised ML classifier</div>
+    </div>
+
+    <div class="grid-auto" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px;">
+      <div style="padding:14px;background:rgba(255,255,255,0.02);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);text-align:center">
+        <div style="font-size:12px;font-weight:700;color:var(--accent-white);margin-bottom:4px">L1: Feature Vector</div>
+        <div style="font-size:11px;color:var(--accent-muted)">30 Structural Signals</div>
       </div>
-      <div style="padding:16px;background:var(--surface-2);border-radius:var(--radius-sm)">
-        <div style="font-size:24px;margin-bottom:8px">🔬</div>
-        <div style="font-size:12px;font-weight:700;color:var(--text-primary);margin-bottom:4px">Anomaly Detect</div>
-        <div style="font-size:11px;color:var(--text-muted)">Isolation Forest unsupervised</div>
+
+      <div style="padding:14px;background:rgba(255,255,255,0.02);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);text-align:center">
+        <div style="font-size:12px;font-weight:700;color:var(--accent-white);margin-bottom:4px">L2: Random Forest</div>
+        <div style="font-size:11px;color:var(--accent-muted)">Supervised ML Model</div>
       </div>
-      <div style="padding:16px;background:var(--surface-2);border-radius:var(--radius-sm)">
-        <div style="font-size:24px;margin-bottom:8px">📋</div>
-        <div style="font-size:12px;font-weight:700;color:var(--text-primary);margin-bottom:4px">Rule Engine</div>
-        <div style="font-size:11px;color:var(--text-muted)">10 heuristic security rules</div>
+
+      <div style="padding:14px;background:rgba(255,255,255,0.02);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);text-align:center">
+        <div style="font-size:12px;font-weight:700;color:var(--accent-white);margin-bottom:4px">L3: Isolation Forest</div>
+        <div style="font-size:11px;color:var(--accent-muted)">Anomaly Detection</div>
       </div>
-      <div style="padding:16px;background:var(--surface-2);border-radius:var(--radius-sm)">
-        <div style="font-size:24px;margin-bottom:8px">🌐</div>
-        <div style="font-size:12px;font-weight:700;color:var(--text-primary);margin-bottom:4px">Reputation</div>
-        <div style="font-size:11px;color:var(--text-muted)">WHOIS + DNSBL checks</div>
+
+      <div style="padding:14px;background:rgba(255,255,255,0.02);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);text-align:center">
+        <div style="font-size:12px;font-weight:700;color:var(--accent-white);margin-bottom:4px">L4: Heuristics</div>
+        <div style="font-size:11px;color:var(--accent-muted)">Deterministic Rules</div>
+      </div>
+
+      <div style="padding:14px;background:rgba(255,255,255,0.02);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);text-align:center">
+        <div style="font-size:12px;font-weight:700;color:var(--accent-white);margin-bottom:4px">L5: Reputation</div>
+        <div style="font-size:11px;color:var(--accent-muted)">WHOIS & Threat Feeds</div>
       </div>
     </div>
   </div>
@@ -81,7 +101,7 @@
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/scanner.js') }}"></script>
 <script>
-  // Example buttons
+  // Presets
   document.querySelectorAll(".example-btn").forEach(btn => {
     btn.addEventListener("click", () => {
       document.getElementById("scan-input").value = btn.dataset.val;
@@ -89,7 +109,7 @@
     });
   });
 
-  // Show/hide scan-steps only when it has content
+  // Toggle scan-steps box
   const observer = new MutationObserver(() => {
     const el = document.getElementById("scan-steps");
     if (el) el.style.display = el.innerHTML.trim() ? "block" : "none";

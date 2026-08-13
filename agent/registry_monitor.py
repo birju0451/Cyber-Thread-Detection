@@ -4,6 +4,8 @@ agent/registry_monitor.py
 Monitors Windows Registry startup persistence keys.
 Detects unauthorized programs added to Run/RunOnce entries.
 
+Security-relevant changes are routed through the Zero Trust pipeline.
+
 Uses: winreg (built-in Windows module)
 """
 
@@ -93,6 +95,26 @@ class RegistryMonitor:
                         message  = f"New startup entry: {name}\n{data[:100]}",
                         severity = "WARNING",
                     )
+
+                    # Route through Zero Trust pipeline
+                    try:
+                        from agent.zt_pipeline import process_security_event
+                        event = {
+                            "event_type"  : "registry_modify",
+                            "source"      : "registry_monitor",
+                            "resource"    : key,
+                            "process_name": "unknown",
+                            "details"     : {
+                                "key"       : key,
+                                "name"      : name,
+                                "data"      : data[:500],
+                                "change"    : "new_entry",
+                                "persistence": "registry_run_key",
+                            },
+                        }
+                        process_security_event(event)
+                    except Exception as e:
+                        log_agent.debug(f"ZT pipeline for registry event failed: {e}")
 
         self._baseline = current
         return alerts

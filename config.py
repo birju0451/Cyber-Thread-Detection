@@ -39,6 +39,7 @@ load_dotenv(BASE_DIR / ".env")
 # MongoDB
 # ---------------------------------------------------------------------------
 
+MONGO_ENABLED: bool = os.getenv("MONGO_ENABLED", "false").lower() == "true"
 MONGO_URI  : str = os.getenv("MONGO_URI", "mongodb+srv://kkaryacse_db_user:DFaJpYGda60JeBHk@cyberthreat.dnvgxor.mongodb.net/?appName=CyberThreat")
 MONGO_DB   : str = os.getenv("MONGO_DB",  "abtd")
 

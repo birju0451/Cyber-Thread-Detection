@@ -164,8 +164,8 @@ class ResponseEngine:
 
         # Try desktop notification
         try:
-            from agent.notifier import notifier
-            notifier.notify(
+            from agent.notifier import notify
+            notify(
                 title   = f"⚠️ ABTD Zero Trust — {decision}",
                 message = message,
                 severity= level,

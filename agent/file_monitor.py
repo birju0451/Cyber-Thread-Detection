@@ -2,7 +2,8 @@
 agent/file_monitor.py
 ======================
 Watches configured directories for newly created/modified files.
-Suspicious files are analyzed by the ABTD engine and logged.
+Suspicious files are analyzed by the ABTD engine and routed
+through the Zero Trust pipeline.
 
 Uses: watchdog (cross-platform file system events)
 """
@@ -27,7 +28,7 @@ except ImportError:
 
 
 class ThreatFileHandler(FileSystemEventHandler):
-    """Handle file system events and run ABTD analysis on suspicious files."""
+    """Handle file system events and run ABTD + ZT analysis on suspicious files."""
 
     def __init__(self):
         from engine.predictor import engine
@@ -66,6 +67,28 @@ class ThreatFileHandler(FileSystemEventHandler):
                 source      = "file_monitor",
                 details     = {"path": path, "score": score, "action": action},
             )
+
+            # Route through Zero Trust pipeline
+            try:
+                from agent.zt_pipeline import process_security_event
+                event_type = "file_download" if action == "created" else "file_write"
+                event = {
+                    "event_type"    : event_type,
+                    "source"        : "file_monitor",
+                    "resource"      : path,
+                    "process_name"  : "unknown",
+                    "details"       : {
+                        "path"          : path,
+                        "action"        : action,
+                        "extension"     : suffix,
+                        "file_name"     : Path(path).name,
+                        "abtd_score"    : score,
+                        "classification": classification,
+                    },
+                }
+                process_security_event(event)
+            except Exception as e:
+                log_agent.debug(f"ZT pipeline for file event failed: {e}")
 
             if classification in ("MALICIOUS", "CRITICAL"):
                 notify(

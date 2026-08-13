@@ -1,58 +1,104 @@
 {% extends "base.html" %}
-{% block title %}Dashboard{% endblock %}
-{% block page_title %}Dashboard{% endblock %}
-{% block page_subtitle %}Real-time threat overview — AI-powered endpoint protection{% endblock %}
+{% block title %}SOC Overview{% endblock %}
+{% block page_title %}Security Operations Console{% endblock %}
+{% block page_subtitle %}Real-time threat monitoring & automated endpoint defense telemetry{% endblock %}
 
 {% block content %}
 
-<!-- ── KPI Cards ──────────────────────────────────────────── -->
+<!-- ── KPI Metrics Grid ──────────────────────────────────── -->
 <div class="stats-grid">
-  <div class="stat-card" style="--card-color: var(--accent-cyan)">
-    <span class="stat-icon">🔍</span>
+  <div class="stat-card">
+    <div class="stat-card-header">
+      <div class="stat-card-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      </div>
+      <span class="badge badge-neutral">TOTAL</span>
+    </div>
     <div class="stat-value" id="stat-total-scans">—</div>
-    <div class="stat-label">Total Scans</div>
+    <div class="stat-label">Scans Executed</div>
   </div>
-  <div class="stat-card" style="--card-color: var(--malicious)">
-    <span class="stat-icon">🚨</span>
+
+  <div class="stat-card">
+    <div class="stat-card-header">
+      <div class="stat-card-icon" style="color: var(--malicious); background: var(--malicious-bg); border-color: var(--malicious-border);">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      </div>
+      <span class="badge badge-malicious">MALICIOUS</span>
+    </div>
     <div class="stat-value" id="stat-threats">—</div>
-    <div class="stat-label">Threats Detected</div>
+    <div class="stat-label">Threats Mitigated</div>
   </div>
-  <div class="stat-card" style="--card-color: var(--suspicious)">
-    <span class="stat-icon">⚠️</span>
+
+  <div class="stat-card">
+    <div class="stat-card-header">
+      <div class="stat-card-icon" style="color: var(--suspicious); background: var(--suspicious-bg); border-color: var(--suspicious-border);">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </div>
+      <span class="badge badge-suspicious">WARNING</span>
+    </div>
     <div class="stat-value" id="stat-suspicious">—</div>
-    <div class="stat-label">Suspicious</div>
+    <div class="stat-label">Suspicious Signals</div>
   </div>
-  <div class="stat-card" style="--card-color: var(--safe)">
-    <span class="stat-icon">✅</span>
+
+  <div class="stat-card">
+    <div class="stat-card-header">
+      <div class="stat-card-icon" style="color: var(--safe); background: var(--safe-bg); border-color: var(--safe-border);">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+      </div>
+      <span class="badge badge-safe">CLEAN</span>
+    </div>
     <div class="stat-value" id="stat-safe">—</div>
-    <div class="stat-label">Safe</div>
+    <div class="stat-label">Verified Clean</div>
   </div>
-  <div class="stat-card" style="--card-color: var(--accent-violet)">
-    <span class="stat-icon">🔔</span>
+
+  <div class="stat-card">
+    <div class="stat-card-header">
+      <div class="stat-card-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+      </div>
+      <span class="badge badge-neutral">AGENT</span>
+    </div>
     <div class="stat-value" id="stat-alerts">—</div>
-    <div class="stat-label">Agent Alerts</div>
+    <div class="stat-label">Telemetry Alerts</div>
   </div>
-  <div class="stat-card" style="--card-color: var(--accent-primary)">
-    <span class="stat-icon">📈</span>
+
+  <div class="stat-card">
+    <div class="stat-card-header">
+      <div class="stat-card-icon" style="color: var(--critical); background: var(--critical-bg); border-color: var(--critical-border);">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      </div>
+      <span class="badge badge-critical">RATIO</span>
+    </div>
     <div class="stat-value" id="stat-threat-rate">—</div>
-    <div class="stat-label">Threat Rate</div>
+    <div class="stat-label">Threat Index</div>
   </div>
 </div>
 
-<!-- ── Charts Row ─────────────────────────────────────────── -->
+<!-- ── Charts Section ────────────────────────────────────── -->
 <div class="grid-2 mb-24">
   <div class="card">
     <div class="card-header">
-      <div class="card-title">📅 7-Day Threat Timeline</div>
-      <span class="live-indicator"><span class="live-dot"></span> Auto-refresh</span>
+      <div class="card-title">
+        <div class="card-title-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+        </div>
+        7-Day Threat Vector Timeline
+      </div>
+      <span class="badge badge-neutral">LIVE SYNC</span>
     </div>
     <div class="chart-wrap">
       <canvas id="timeline-chart"></canvas>
     </div>
   </div>
+
   <div class="card">
     <div class="card-header">
-      <div class="card-title">🕐 24h Hourly Activity</div>
+      <div class="card-title">
+        <div class="card-title-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        24-Hour Telemetry Velocity
+      </div>
     </div>
     <div class="chart-wrap">
       <canvas id="hourly-chart"></canvas>
@@ -60,59 +106,73 @@
   </div>
 </div>
 
-<!-- ── System Health + Recent Threats ────────────────────── -->
+<!-- ── System Health & Live Telemetry ────────────────────── -->
 <div class="grid-2">
-  <!-- System Health -->
+  <!-- Endpoint Health -->
   <div class="card">
     <div class="card-header">
-      <div class="card-title">💻 System Health</div>
-      <span class="text-muted" id="sys-hostname" style="font-size:12px"></span>
+      <div class="card-title">
+        <div class="card-title-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg>
+        </div>
+        Host Node Resource Monitor
+      </div>
+      <span class="badge badge-safe" id="sys-hostname">ACTIVE NODE</span>
     </div>
 
     <div style="display:flex;flex-direction:column;gap:16px">
       <div>
-        <div class="flex-between mb-8" style="font-size:13px">
-          <span class="text-secondary">CPU Usage</span>
-          <span class="text-primary" id="sys-cpu">—</span>
+        <div class="flex-between mb-8" style="font-size:12px">
+          <span class="text-muted">CPU Compute Utilization</span>
+          <span class="text-white font-mono" id="sys-cpu">—</span>
         </div>
         <div class="score-bar"><div class="score-bar-fill" id="bar-cpu" style="width:0%"></div></div>
       </div>
+
       <div>
-        <div class="flex-between mb-8" style="font-size:13px">
-          <span class="text-secondary">RAM Usage</span>
-          <span class="text-primary" id="sys-ram">—</span>
+        <div class="flex-between mb-8" style="font-size:12px">
+          <span class="text-muted">RAM Memory Allocation</span>
+          <span class="text-white font-mono" id="sys-ram">—</span>
         </div>
         <div class="score-bar"><div class="score-bar-fill" id="bar-ram" style="width:0%"></div></div>
       </div>
+
       <div>
-        <div class="flex-between mb-8" style="font-size:13px">
-          <span class="text-secondary">Disk Usage</span>
-          <span class="text-primary" id="sys-disk">—</span>
+        <div class="flex-between mb-8" style="font-size:12px">
+          <span class="text-muted">Storage I/O Utilization</span>
+          <span class="text-white font-mono" id="sys-disk">—</span>
         </div>
         <div class="score-bar"><div class="score-bar-fill" id="bar-disk" style="width:0%"></div></div>
       </div>
-      <div class="flex-between" style="font-size:13px;margin-top:8px;padding-top:12px;border-top:1px solid var(--surface-border)">
-        <span class="text-muted">System Uptime</span>
-        <span class="text-secondary" id="sys-uptime">—</span>
+
+      <div class="flex-between" style="font-size:12px;margin-top:4px;padding-top:12px;border-top:1px solid var(--border-subtle)">
+        <span class="text-muted">Engine System Uptime</span>
+        <span class="text-white font-mono" id="sys-uptime">—</span>
       </div>
     </div>
   </div>
 
-  <!-- Recent Threats -->
+  <!-- Recent Threat Telemetry -->
   <div class="card">
     <div class="card-header">
-      <div class="card-title">🔴 Recent Threats</div>
-      <a href="/history" class="btn btn-outline btn-sm">View All</a>
+      <div class="card-title">
+        <div class="card-title-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        </div>
+        Live Threat Detections
+      </div>
+      <a href="/history" class="btn btn-outline btn-sm">Audit Log</a>
     </div>
-    <div style="overflow-x:auto">
+
+    <div class="table-responsive">
       <table class="data-table">
         <thead>
           <tr>
-            <th>Target</th>
-            <th>Level</th>
+            <th>Target Payload</th>
+            <th>Classification</th>
             <th>Score</th>
             <th>Type</th>
-            <th>When</th>
+            <th>Timestamp</th>
           </tr>
         </thead>
         <tbody id="recent-threats-body">
@@ -123,14 +183,34 @@
   </div>
 </div>
 
-<!-- Quick Actions -->
+<!-- Quick Navigation Console -->
 <div class="card mt-24">
-  <div class="card-title mb-16">⚡ Quick Actions</div>
-  <div class="flex gap-12">
-    <a href="/scanner" class="btn btn-primary">🔍 Scan URL / File</a>
-    <a href="/history?classification=MALICIOUS" class="btn btn-danger">🚫 View Threats</a>
-    <a href="/awareness" class="btn btn-outline">🎓 Learn Security</a>
-    <a href="/settings" class="btn btn-outline">⚙️ Settings</a>
+  <div class="card-header" style="margin-bottom:12px">
+    <div class="card-title">
+      <div class="card-title-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      </div>
+      Shortcuts & Quick Actions
+    </div>
+  </div>
+
+  <div class="flex gap-12" style="flex-wrap:wrap">
+    <a href="/scanner" class="btn btn-primary">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      Payload Scanner
+    </a>
+    <a href="/history?classification=MALICIOUS" class="btn btn-danger">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      Threat Logs
+    </a>
+    <a href="/zero-trust" class="btn btn-outline">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      Zero Trust Policies
+    </a>
+    <a href="/awareness" class="btn btn-outline">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/></svg>
+      Security Intelligence
+    </a>
   </div>
 </div>
 

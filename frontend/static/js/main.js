@@ -184,13 +184,60 @@ const ABTD = {
     if (text) text.textContent = data.db === "connected" ? "Protected" : "DB Offline";
   },
 
+  // ── Sidebar Resizer (Drag to Expand/Shrink) ───────────────
+  initSidebarResizer() {
+    const sidebar = document.getElementById("sidebar");
+    if (!sidebar) return;
+
+    // Restore saved width from localStorage if present
+    const savedWidth = localStorage.getItem("abtd_sidebar_width");
+    if (savedWidth) {
+      const clamped = Math.min(Math.max(parseInt(savedWidth, 10), 220), 500);
+      document.documentElement.style.setProperty("--sidebar-w", `${clamped}px`);
+    }
+
+    // Attach resizer element if missing
+    let resizer = sidebar.querySelector(".sidebar-resizer");
+    if (!resizer) {
+      resizer = document.createElement("div");
+      resizer.className = "sidebar-resizer";
+      resizer.title = "Drag right to widen or left to shrink sidebar width";
+      sidebar.appendChild(resizer);
+    }
+
+    let isResizing = false;
+
+    resizer.addEventListener("mousedown", (e) => {
+      isResizing = true;
+      document.body.classList.add("sidebar-resizing");
+      e.preventDefault();
+    });
+
+    document.addEventListener("mousemove", (e) => {
+      if (!isResizing) return;
+      // Clamp between 220px and 500px
+      const newWidth = Math.min(Math.max(e.clientX, 220), 500);
+      document.documentElement.style.setProperty("--sidebar-w", `${newWidth}px`);
+      localStorage.setItem("abtd_sidebar_width", newWidth);
+    });
+
+    document.addEventListener("mouseup", () => {
+      if (isResizing) {
+        isResizing = false;
+        document.body.classList.remove("sidebar-resizing");
+      }
+    });
+  },
+
   // ── Init ─────────────────────────────────────────────────
   init() {
     this.setActiveNav();
     this.startClock();
     this.updateStatusBadge();
+    this.initSidebarResizer();
     setInterval(() => this.updateStatusBadge(), 30000);
   },
 };
 
 document.addEventListener("DOMContentLoaded", () => ABTD.init());
+

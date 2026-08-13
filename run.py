@@ -32,14 +32,15 @@ from backend.logger import log_system
 def print_banner() -> None:
     print("""
 ╔══════════════════════════════════════════════════════════╗
-║   ABTD — Adaptive Behavioral Threat Detection v1.0       ║
-║   AI-Powered Windows Endpoint Protection Platform        ║
+║   ABTD — Adaptive Behavioral Threat Detection v2.0       ║
+║   Risk-Adaptive Zero Trust Windows Security System       ║
 ╠══════════════════════════════════════════════════════════╣
 ║   Flask API   : http://127.0.0.1:5000                   ║
 ║   Dashboard   : http://127.0.0.1:5000/dashboard         ║
-║   Scanner     : http://127.0.0.1:5000/scanner           ║
+║   Zero Trust  : http://127.0.0.1:5000/zero-trust        ║
 ║   MongoDB     : Atlas Cloud                              ║
-║   Gemini AI   : Enabled                                  ║
+║   ML Models   : Random Forest + Isolation Forest         ║
+║   Agent       : Continuous Windows Monitoring            ║
 ╚══════════════════════════════════════════════════════════╝
 """)
 

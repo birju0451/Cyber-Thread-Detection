@@ -15,13 +15,21 @@
     <div class="logo-row">
       <span class="shield-icon">🛡️</span>
       <div>
-        <div class="brand">ABTD</div>
-        <div class="brand-sub">Adaptive Behavioral Threat Detection</div>
+        <div class="brand">ABTD v2.0</div>
+        <div class="brand-sub">Zero Trust + Adaptive Threat Detection</div>
       </div>
     </div>
     <div class="status-pill" id="conn-status">
       <span class="dot"></span>
       <span id="conn-text">Checking…</span>
+    </div>
+  </div>
+
+  <!-- Protection Status -->
+  <div class="section" id="protection-section">
+    <div class="protection-badge" id="protection-badge">
+      <span id="protection-icon">🔒</span>
+      <span id="protection-text">Protection Active</span>
     </div>
   </div>
 
@@ -31,6 +39,34 @@
     <div id="current-result" class="result-box loading">
       <div class="spinner"></div>
       <span>Analyzing…</span>
+    </div>
+  </div>
+
+  <!-- Zero Trust Decision -->
+  <div class="section" id="zt-section" style="display:none">
+    <div class="section-label">Zero Trust Decision</div>
+    <div id="zt-result" class="zt-box">
+      <div class="zt-decision-row">
+        <span id="zt-icon" class="zt-icon">❓</span>
+        <div>
+          <div id="zt-decision" class="zt-decision">—</div>
+          <div id="zt-reason" class="zt-reason"></div>
+        </div>
+      </div>
+      <div class="zt-metrics">
+        <div class="zt-metric">
+          <div class="zt-metric-label">Trust Score</div>
+          <div id="zt-trust" class="zt-metric-value">—</div>
+        </div>
+        <div class="zt-metric">
+          <div class="zt-metric-label">Risk Level</div>
+          <div id="zt-risk" class="zt-metric-value">—</div>
+        </div>
+        <div class="zt-metric">
+          <div class="zt-metric-label">Policy</div>
+          <div id="zt-policy" class="zt-metric-value">—</div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -59,6 +95,10 @@
       <div class="stat-box">
         <div class="stat-num safe" id="stat-safe">0</div>
         <div class="stat-label">Safe</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-num blocked" id="stat-blocked">0</div>
+        <div class="stat-label">Blocked</div>
       </div>
     </div>
   </div>

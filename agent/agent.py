@@ -1,13 +1,18 @@
 """
 agent/agent.py
 ===============
-ABTD Windows Background Agent — Main Orchestrator.
+ABTD Windows Background Agent — Main Orchestrator v2.0.
 
 Starts and manages all monitoring sub-threads:
   - File Monitor      (watchdog)
   - Process Monitor   (psutil)
   - Registry Monitor  (winreg)
   - Network Monitor   (psutil)
+  - USB Monitor       (drive letter polling)
+  - Startup Monitor   (startup folders + scheduled tasks)
+
+All security-relevant events are routed through:
+  Event → Classifier → ABTD → Zero Trust → Policy → Response → MongoDB
 
 Runs as a daemon. Can be started from run.py or independently.
 """
@@ -27,9 +32,10 @@ from backend.database import db
 
 class ABTDAgent:
     """
-    Main Windows Background Monitoring Agent.
+    Main Windows Background Monitoring Agent v2.0.
 
     Coordinates all monitoring modules in separate daemon threads.
+    Routes events through the Zero Trust pipeline.
     """
 
     def __init__(self):
@@ -42,9 +48,10 @@ class ABTDAgent:
             log_agent.info("Agent disabled in config — skipping")
             return
 
-        log_agent.info("=" * 50)
-        log_agent.info("  ABTD Windows Agent — Starting")
-        log_agent.info("=" * 50)
+        log_agent.info("=" * 55)
+        log_agent.info("  ABTD Windows Agent v2.0 — Starting")
+        log_agent.info("  Zero Trust + ABTD Continuous Monitoring")
+        log_agent.info("=" * 55)
 
         self._running = True
 
@@ -69,8 +76,15 @@ class ABTDAgent:
         # ── Network Monitor ───────────────────────────────────────────
         self._spawn_thread(self._run_network_monitor, "NetworkMonitor")
 
+        # ── USB Monitor ───────────────────────────────────────────────
+        self._spawn_thread(self._run_usb_monitor, "USBMonitor")
+
+        # ── Startup Monitor ───────────────────────────────────────────
+        self._spawn_thread(self._run_startup_monitor, "StartupMonitor")
+
         log_agent.info(f"✓ ABTD Agent running | {len(self._threads)} monitoring threads")
         log_agent.info(f"  Scan interval: {config.AGENT_SCAN_INTERVAL_S}s")
+        log_agent.info(f"  ZT Pipeline: Active")
 
     def _spawn_thread(self, target, name: str) -> None:
         t = threading.Thread(target=target, name=name, daemon=True)
@@ -98,6 +112,26 @@ class ABTDAgent:
             NetworkMonitor().run_forever(interval=20)
         except Exception as e:
             log_agent.error(f"NetworkMonitor crashed: {e}")
+
+    def _run_usb_monitor(self) -> None:
+        try:
+            from agent.usb_monitor import USBMonitor
+            from agent.zt_pipeline import process_security_event
+            mon = USBMonitor()
+            mon.set_callback(process_security_event)
+            mon.run_forever(interval=5)
+        except Exception as e:
+            log_agent.error(f"USBMonitor crashed: {e}")
+
+    def _run_startup_monitor(self) -> None:
+        try:
+            from agent.startup_monitor import StartupMonitor
+            from agent.zt_pipeline import process_security_event
+            mon = StartupMonitor()
+            mon.set_callback(process_security_event)
+            mon.run_forever(interval=30)
+        except Exception as e:
+            log_agent.error(f"StartupMonitor crashed: {e}")
 
     def _shutdown(self, *args) -> None:
         log_agent.info("Shutting down ABTD Agent…")

@@ -123,7 +123,7 @@ class ProcessAssessor:
         with self._lock:
             return self._scores.get(pid, {}).get("process_risk_score", 50)
 
-    def assess_all_running(self, max_processes: int = 100) -> list:
+    def assess_all_running(self, max_processes: int = 150) -> list:
         """
         Assess all currently running processes (capped at max_processes).
         Returns list of assessment dicts sorted by risk (highest first).
@@ -137,7 +137,11 @@ class ProcessAssessor:
             if count >= max_processes:
                 break
             try:
-                info = proc.info
+                info = proc.info or {}
+                pid  = info.get("pid")
+                if pid is None:
+                    continue
+
                 parent_name = ""
                 if info.get("ppid"):
                     try:
@@ -145,17 +149,22 @@ class ProcessAssessor:
                     except Exception:
                         pass
 
+                cmdline_list = info.get("cmdline") or []
+                cmdline_str  = " ".join(cmdline_list) if isinstance(cmdline_list, list) else str(cmdline_list)
+
                 result = self.assess_process(
-                    pid         = info["pid"],
-                    name        = info.get("name") or "",
+                    pid         = pid,
+                    name        = info.get("name") or f"PID-{pid}",
                     exe         = info.get("exe")  or "",
-                    cmdline     = " ".join(info.get("cmdline") or []),
+                    cmdline     = cmdline_str,
                     parent_name = parent_name,
                 )
                 results.append(result)
                 count += 1
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
+            except (psutil.NoSuchProcess, psutil.ZombieProcess):
                 continue
+            except Exception as e:
+                log.debug(f"Process assessment error for entry: {e}")
 
         results.sort(key=lambda r: r.get("process_risk_score", 0), reverse=True)
         return results
@@ -172,8 +181,8 @@ class ProcessAssessor:
     ) -> dict:
         risk_score = 0
         flags      = []
-        name_lower = name.lower()
-        exe_lower  = exe.lower()
+        name_lower = (name or "").lower()
+        exe_lower  = (exe or "").lower()
 
         # 1. Blocklist check
         if name_lower in HIGH_RISK_PROCESS_NAMES:
@@ -216,37 +225,47 @@ class ProcessAssessor:
             risk_score += 25
             flags.append(f"Executable running from suspicious path: {exe}")
 
-        # 6. Psutil enhanced checks (if available)
+        # 6. Psutil non-blocking extended checks (if available)
         if _PSUTIL_OK and pid > 0:
             try:
                 proc = psutil.Process(pid)
 
-                # CPU anomaly (> 90% sustained — possible crypto miner or loop)
-                cpu = proc.cpu_percent(interval=0.5)
-                if cpu > 90:
-                    risk_score += 10
-                    flags.append(f"Very high CPU usage: {cpu:.1f}%")
+                # Non-blocking CPU check (interval=None avoid 0.5s sleep)
+                try:
+                    cpu = proc.cpu_percent(interval=None)
+                    if cpu > 90:
+                        risk_score += 10
+                        flags.append(f"Very high CPU usage: {cpu:.1f}%")
+                except Exception:
+                    pass
 
                 # Memory anomaly (> 1 GB for a normal user process)
-                mem_mb = proc.memory_info().rss / 1024 / 1024
-                if mem_mb > 1024:
-                    risk_score += 5
-                    flags.append(f"Unusually high memory usage: {mem_mb:.0f} MB")
+                try:
+                    mem_mb = proc.memory_info().rss / 1024 / 1024
+                    if mem_mb > 1024:
+                        risk_score += 5
+                        flags.append(f"Unusually high memory usage: {mem_mb:.0f} MB")
+                except Exception:
+                    pass
 
                 # Network connections opened by this process
-                conns = proc.net_connections(kind="inet")
-                suspicious_ports = {4444, 5555, 1337, 31337, 6666, 9001, 9090}
-                for conn in conns:
-                    if conn.raddr and conn.raddr.port in suspicious_ports:
-                        risk_score += 20
-                        flags.append(
-                            f"Connection to suspicious port {conn.raddr.port}"
-                        )
+                try:
+                    conns = proc.net_connections(kind="inet")
+                    suspicious_ports = {4444, 5555, 1337, 31337, 6666, 9001, 9090}
+                    for conn in conns:
+                        if conn.raddr and conn.raddr.port in suspicious_ports:
+                            risk_score += 20
+                            flags.append(
+                                f"Connection to suspicious port {conn.raddr.port}"
+                            )
+                except Exception:
+                    pass
 
-            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            except (psutil.NoSuchProcess, psutil.ZombieProcess):
                 pass
             except Exception as e:
                 log.debug(f"psutil extended check error for PID {pid}: {e}")
+
 
         risk_score = min(risk_score, 100)
         trust_score = max(0, 100 - risk_score)
